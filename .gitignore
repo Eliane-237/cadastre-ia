@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.pytest_cache/
+.ruff_cache/
+
+# Données sensibles : jamais versionnées
+data/raw/
+data/annotations/
+*.xlsx

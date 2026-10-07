@@ -111,6 +111,9 @@ class Extraction(BaseModel):
     printed_area: Extracted[Area] = Field(default_factory=Extracted)
 
     points: list[BoundaryPoint] = Field(default_factory=list)
+    # Distances imprimées sur le plan : l'indice i est le côté du point i vers le point i+1
+    # (le dernier revient au premier). Non extraites par le parseur actuel.
+    printed_sides: list[Extracted[float]] = Field(default_factory=list)
     issues: list[Issue] = Field(default_factory=list)
 
     @property

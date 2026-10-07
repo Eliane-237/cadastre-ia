@@ -1,0 +1,1 @@
+# RapidOCR sur image brute

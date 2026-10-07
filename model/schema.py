@@ -1,0 +1,1 @@
+ # sortie du modèle : champs + confiance + source

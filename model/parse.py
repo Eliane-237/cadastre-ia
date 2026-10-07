@@ -1,0 +1,1 @@
+# texte → points, nom, superficie, identifiants

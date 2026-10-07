@@ -13,12 +13,13 @@ from typing import Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from model.config import SETTINGS
+
 T = TypeVar("T")
 
 UTM_28N = "EPSG:32628"
 SCHEMA_VERSION = "1.0"
-# Valeur de travail à calibrer sur de vrais documents : en dessous, un champ part en revue.
-REVIEW_THRESHOLD = 0.85
+REVIEW_THRESHOLD = SETTINGS.review_threshold  # valeur de travail, voir model/config.py
 
 
 class Source(str, Enum):

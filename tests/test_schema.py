@@ -2,7 +2,14 @@ import pytest
 from pydantic import ValidationError
 
 from model.schema import (
-    Area, BBox, BoundaryPoint, Extracted, Extraction, Issue, Severity, Source,
+    Area,
+    BBox,
+    BoundaryPoint,
+    Extracted,
+    Extraction,
+    Issue,
+    Severity,
+    Source,
 )
 
 

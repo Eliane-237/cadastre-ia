@@ -1,0 +1,1032 @@
+{
+  "summary": {
+    "documents": 6,
+    "values": 122,
+    "exact": 63,
+    "near": 10,
+    "wrong": 7,
+    "missing": 42,
+    "exact_rate": 0.5163934426229508,
+    "spurious_points": 0
+  },
+  "calibration": [
+    {
+      "from": 0.0,
+      "to": 0.5,
+      "n": 0,
+      "errors": 0,
+      "error_rate": null
+    },
+    {
+      "from": 0.5,
+      "to": 0.7,
+      "n": 0,
+      "errors": 0,
+      "error_rate": null
+    },
+    {
+      "from": 0.7,
+      "to": 0.85,
+      "n": 2,
+      "errors": 0,
+      "error_rate": 0.0
+    },
+    {
+      "from": 0.85,
+      "to": 0.95,
+      "n": 8,
+      "errors": 5,
+      "error_rate": 0.625
+    },
+    {
+      "from": 0.95,
+      "to": 1.0,
+      "n": 70,
+      "errors": 12,
+      "error_rate": 0.17142857142857143
+    }
+  ],
+  "threshold": {
+    "threshold": 0.9922200798988342,
+    "accepted": 36,
+    "review_share": 0.7049180327868853
+  },
+  "results": [
+    {
+      "document_id": "D01",
+      "field": "title_number",
+      "expected": "titre mere 1738/dk (ex 3016/dg)",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D01",
+      "field": "locality",
+      "expected": "dakar, medina",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D01",
+      "field": "printed_area_m2",
+      "expected": "649",
+      "got": "649",
+      "confidence": 0.9566492368193233,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[0].x",
+      "expected": "235906.620",
+      "got": "235906.620",
+      "confidence": 0.9923891305923462,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[0].y",
+      "expected": "1624690.747",
+      "got": "1624690.747",
+      "confidence": 0.9859048561616377,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[1].x",
+      "expected": "235911.823",
+      "got": "235911.823",
+      "confidence": 0.9934041678905488,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[1].y",
+      "expected": "1624686.990",
+      "got": "1624686.990",
+      "confidence": 0.991218702359633,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[2].x",
+      "expected": "235919.165",
+      "got": "235919.165",
+      "confidence": 0.9958771467208862,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[2].y",
+      "expected": "1624683.100",
+      "got": "1624683.100",
+      "confidence": 0.983499906279824,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[3].x",
+      "expected": "235895.652",
+      "got": "4235895.652",
+      "confidence": 0.988868902126948,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[3].y",
+      "expected": "1624658.995",
+      "got": "1624658.995",
+      "confidence": 0.9928029125387018,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[4].x",
+      "expected": "235880.994",
+      "got": "5235880.994",
+      "confidence": 0.9756387316662333,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[4].y",
+      "expected": "1624672.884",
+      "got": "1624672.884",
+      "confidence": 0.9756387316662333,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[5].x",
+      "expected": "235881.571",
+      "got": "235881.571",
+      "confidence": 0.9744261860847473,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[5].y",
+      "expected": "1624673.492",
+      "got": "1624673.492",
+      "confidence": 0.9926594333215193,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[6].x",
+      "expected": "235877.383",
+      "got": "235877.383",
+      "confidence": 0.979772412776947,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[6].y",
+      "expected": "1624677.333",
+      "got": "1624677.333",
+      "confidence": 0.9491105079650879,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[7].x",
+      "expected": "235883.969",
+      "got": "235883.969",
+      "confidence": 0.9922200798988342,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[7].y",
+      "expected": "1624684.920",
+      "got": "1624684.920",
+      "confidence": 0.9701925570314581,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[8].x",
+      "expected": "235886.148",
+      "got": "235886.148",
+      "confidence": 0.9896770596504212,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[8].y",
+      "expected": "1624683.028",
+      "got": "1624683.028",
+      "confidence": 0.9860916354439475,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[9].x",
+      "expected": "235897.914",
+      "got": "235897.914",
+      "confidence": 0.9964353263378143,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[9].y",
+      "expected": "1624685.403",
+      "got": "1624685.403",
+      "confidence": 0.9769699736074968,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[10].x",
+      "expected": "235899.680",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[10].y",
+      "expected": "1624685.954",
+      "got": "624685.954",
+      "confidence": 0.9918094217777252,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[11].x",
+      "expected": "235900.745",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D01",
+      "field": "points[11].y",
+      "expected": "1624686.707",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D02",
+      "field": "title_number",
+      "expected": "morcellement du d.n.",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D02",
+      "field": "locality",
+      "expected": "malicounda, keur balla lo",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D02",
+      "field": "printed_area_m2",
+      "expected": "2100",
+      "got": "2100",
+      "confidence": 0.9510958045721054,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[0].x",
+      "expected": "294086.33",
+      "got": "294086.33",
+      "confidence": 0.9970541132820977,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[0].y",
+      "expected": "1595385.12",
+      "got": "1595385.12",
+      "confidence": 0.9983681440353394,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[1].x",
+      "expected": "294124.63",
+      "got": "294124.63",
+      "confidence": 0.9969961510764228,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[1].y",
+      "expected": "1595347.55",
+      "got": "1595347.55",
+      "confidence": 0.997163462638855,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[2].x",
+      "expected": "294107.70",
+      "got": "294107.70",
+      "confidence": 0.9986646705203586,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[2].y",
+      "expected": "1595315.43",
+      "got": "1595315.43",
+      "confidence": 0.9974231064319611,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[3].x",
+      "expected": "294085.75",
+      "got": "294085.75",
+      "confidence": 0.9980363117323982,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[3].y",
+      "expected": "1595318.75",
+      "got": "1595318.75",
+      "confidence": 0.9981909155845642,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[4].x",
+      "expected": "294081.66",
+      "got": "294081.66",
+      "confidence": 0.997648278872172,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D02",
+      "field": "points[4].y",
+      "expected": "1595365.57",
+      "got": "1595365.57",
+      "confidence": 0.9978236377239227,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D04",
+      "field": "title_number",
+      "expected": "titre mere 1835, lot 971/b",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D04",
+      "field": "nicad",
+      "expected": "06110100 00901924",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D04",
+      "field": "locality",
+      "expected": "kaolack, darou ridwane ii",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D04",
+      "field": "printed_area_m2",
+      "expected": "221",
+      "got": "221",
+      "confidence": 0.8462929996577176,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D04",
+      "field": "points[0].x",
+      "expected": "381210.57",
+      "got": "381210.57",
+      "confidence": 0.9618242759453622,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D04",
+      "field": "points[0].y",
+      "expected": "1564042.96",
+      "got": "564042.96",
+      "confidence": 0.9618242759453622,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D04",
+      "field": "points[1].x",
+      "expected": "381225.56",
+      "got": "61564034.94",
+      "confidence": 0.9857788980007172,
+      "outcome": "wrong"
+    },
+    {
+      "document_id": "D04",
+      "field": "points[1].y",
+      "expected": "1564034.94",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D04",
+      "field": "points[2].x",
+      "expected": "381219.40",
+      "got": "381219.40",
+      "confidence": 0.976739648141359,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D04",
+      "field": "points[2].y",
+      "expected": "1564023.49",
+      "got": "564023.49",
+      "confidence": 0.976739648141359,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D04",
+      "field": "points[3].x",
+      "expected": "381204.41",
+      "got": "381204.41",
+      "confidence": 0.950675335369612,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D04",
+      "field": "points[3].y",
+      "expected": "1564031.51",
+      "got": "564031.51",
+      "confidence": 0.950675335369612,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D05",
+      "field": "title_number",
+      "expected": "titre 22 665/gr, titre mere 976/gr, lot 2/c",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D05",
+      "field": "nicad",
+      "expected": "01130134 01200430",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D05",
+      "field": "locality",
+      "expected": "mermoz / sacre-cœur, dakar",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D05",
+      "field": "printed_area_m2",
+      "expected": "255",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D05",
+      "field": "points[0].x",
+      "expected": "234773.60",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D05",
+      "field": "points[0].y",
+      "expected": "1627666.10",
+      "got": "234773.60",
+      "confidence": 0.9770444697803922,
+      "outcome": "wrong"
+    },
+    {
+      "document_id": "D05",
+      "field": "points[1].x",
+      "expected": "234787.39",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D05",
+      "field": "points[1].y",
+      "expected": "1627656.73",
+      "got": "234787.39",
+      "confidence": 0.9610642459657457,
+      "outcome": "wrong"
+    },
+    {
+      "document_id": "D05",
+      "field": "points[2].x",
+      "expected": "234778.76",
+      "got": "234776.76",
+      "confidence": 0.9515931010246277,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D05",
+      "field": "points[2].y",
+      "expected": "1627644.03",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D05",
+      "field": "points[3].x",
+      "expected": "234765.02",
+      "got": "234765.02",
+      "confidence": 0.9940539201100668,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D05",
+      "field": "points[3].y",
+      "expected": "1627653.48",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D08",
+      "field": "title_number",
+      "expected": "morcellement d'une parcelle du d.n.",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D08",
+      "field": "locality",
+      "expected": "sindia, kafngoune",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D08",
+      "field": "printed_area_m2",
+      "expected": "31249",
+      "got": "31249",
+      "confidence": 0.9608977274461226,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[0].x",
+      "expected": "282065.310",
+      "got": "282065.310",
+      "confidence": 0.9873031139373779,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[0].y",
+      "expected": "1609644.090",
+      "got": "1609644.090",
+      "confidence": 0.9885874336416071,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[1].x",
+      "expected": "282068.290",
+      "got": "282068.290",
+      "confidence": 0.9842509448528289,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[1].y",
+      "expected": "1609591.250",
+      "got": "1609591.250",
+      "confidence": 0.997324136170474,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[2].x",
+      "expected": "281983.010",
+      "got": "281983.010",
+      "confidence": 0.9966468870639801,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[2].y",
+      "expected": "1609550.290",
+      "got": "1609550.290",
+      "confidence": 0.9980479966510426,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[3].x",
+      "expected": "281985.760",
+      "got": "281985.760",
+      "confidence": 0.9977942943572998,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[3].y",
+      "expected": "1609533.270",
+      "got": "1609533.270",
+      "confidence": 0.9978364597667347,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[4].x",
+      "expected": "281991.715",
+      "got": "281991.715",
+      "confidence": 0.9973278224468232,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[4].y",
+      "expected": "1609515.691",
+      "got": "1609515.691",
+      "confidence": 0.9983175342733209,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[5].x",
+      "expected": "281871.490",
+      "got": "281871.490",
+      "confidence": 0.9939000189304352,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[5].y",
+      "expected": "1609459.780",
+      "got": "1609459.780",
+      "confidence": 0.9972792592915621,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[6].x",
+      "expected": "281826.420",
+      "got": "281826.420",
+      "confidence": 0.9922641217708588,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[6].y",
+      "expected": "1609518.280",
+      "got": "1609518.280",
+      "confidence": 0.9970779148015109,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[7].x",
+      "expected": "281821.030",
+      "got": "281821.030",
+      "confidence": 0.9935556530952454,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[7].y",
+      "expected": "1609520.590",
+      "got": "1609520.590",
+      "confidence": 0.9970903450792487,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[8].x",
+      "expected": "281849.330",
+      "got": "281849.330",
+      "confidence": 0.9693494498729706,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[8].y",
+      "expected": "1609587.530",
+      "got": "1609587.530",
+      "confidence": 0.9922914721749045,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[9].x",
+      "expected": "281862.750",
+      "got": "281862.750",
+      "confidence": 0.9968043863773346,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[9].y",
+      "expected": "1609635.870",
+      "got": "1609635.870",
+      "confidence": 0.9974501187151129,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[10].x",
+      "expected": "281901.119",
+      "got": "281901.119",
+      "confidence": 0.9954809188842774,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D08",
+      "field": "points[10].y",
+      "expected": "1609416.577",
+      "got": "1609416.577",
+      "confidence": 0.9971925616264343,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D09",
+      "field": "title_number",
+      "expected": "surplus du tf 1436/mb",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "locality",
+      "expected": "ngaparou",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "printed_area_m2",
+      "expected": "9397",
+      "got": "9397",
+      "confidence": 0.9559567068752489,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[0].x",
+      "expected": "282331.83",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[0].y",
+      "expected": "1604661.57",
+      "got": "1604661.57",
+      "confidence": 0.968182361125946,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[1].x",
+      "expected": "282416.37",
+      "got": "282416.37",
+      "confidence": 0.9405204559627333,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[1].y",
+      "expected": "1604658.14",
+      "got": "604658.14",
+      "confidence": 0.9405204559627333,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[2].x",
+      "expected": "282417.04",
+      "got": "41604654.90",
+      "confidence": 0.9807328283786774,
+      "outcome": "wrong"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[2].y",
+      "expected": "1604654.90",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[3].x",
+      "expected": "282405.31",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[3].y",
+      "expected": "1604647.93",
+      "got": "1604647.93",
+      "confidence": 0.8148822218179703,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[4].x",
+      "expected": "282392.67",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[4].y",
+      "expected": "1604633.31",
+      "got": "1604633.31",
+      "confidence": 0.9338745027780533,
+      "outcome": "exact"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[5].x",
+      "expected": "282362.24",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[5].y",
+      "expected": "1604587.96",
+      "got": "1601587.96",
+      "confidence": 0.8750798135995865,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[6].x",
+      "expected": "282354.58",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[6].y",
+      "expected": "1604578.16",
+      "got": "81604578.16",
+      "confidence": 0.9502506620354123,
+      "outcome": "near"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[7].x",
+      "expected": "282340.17",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[7].y",
+      "expected": "1604555.27",
+      "got": "1644537.88",
+      "confidence": 0.9205398321151733,
+      "outcome": "wrong"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[8].x",
+      "expected": "282314.58",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[8].y",
+      "expected": "1604537.88",
+      "got": "1604659.60",
+      "confidence": 0.9199108779430389,
+      "outcome": "wrong"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[9].x",
+      "expected": "282300.07",
+      "got": "282316.25",
+      "confidence": 0.9322614537345039,
+      "outcome": "wrong"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[9].y",
+      "expected": "1604574.25",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[10].x",
+      "expected": "282280.51",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[10].y",
+      "expected": "1604625.97",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[11].x",
+      "expected": "282268.23",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[11].y",
+      "expected": "1604637.80",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[12].x",
+      "expected": "282285.65",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[12].y",
+      "expected": "1604651.17",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[13].x",
+      "expected": "282297.69",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[13].y",
+      "expected": "1604659.60",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[14].x",
+      "expected": "282316.25",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "D09",
+      "field": "points[14].y",
+      "expected": "1604661.42",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    }
+  ]
+}

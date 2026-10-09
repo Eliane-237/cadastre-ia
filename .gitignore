@@ -9,3 +9,7 @@ __pycache__/
 data/raw/
 data/annotations/
 *.xlsx
+# Lectures brutes et rapports sur données réelles : contiennent noms et coordonnées
+reports/readings/
+reports/evaluation.json
+data/synth/

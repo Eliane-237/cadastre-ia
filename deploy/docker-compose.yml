@@ -1,0 +1,49 @@
+# Serveurs d'inférence GPU des deux lecteurs. Le code du projet (python -m model …) s'y connecte
+# par HTTP : il peut tourner sur la même machine ou ailleurs.
+#
+#   docker compose -f deploy/docker-compose.yml up -d
+#   export CADASTRE_QWEN_URL=http://127.0.0.1:8000/v1 CADASTRE_PADDLE_URL=http://127.0.0.1:8080/v1
+#
+# Mémoire GPU (bf16, ordres de grandeur) : Qwen3-VL-8B ≈ 17 Go de poids + cache KV ;
+# PaddleOCR-VL-1.6 (0,9 B) ≈ 2 Go + cache KV.
+# - Un seul GPU de 24 Go : garder les fractions ci-dessous (0.62 + 0.25).
+# - Deux GPU : mettre device_ids ["0"] pour qwen et ["1"] pour paddle-vl, et relever les fractions.
+# - GPU de 16 Go : servir une version quantifiée de Qwen3-VL-8B (AWQ / FP8) via QWEN_MODEL.
+services:
+  qwen:
+    image: vllm/vllm-openai:latest
+    command: >
+      --model ${QWEN_MODEL:-Qwen/Qwen3-VL-8B-Instruct}
+      --served-model-name Qwen/Qwen3-VL-8B-Instruct
+      --max-model-len 16384
+      --limit-mm-per-prompt '{"image": 1}'
+      --gpu-memory-utilization ${QWEN_GPU_FRACTION:-0.62}
+      --max-logprobs 1
+      --port 8000
+    ports: ["8000:8000"]
+    ipc: host
+    volumes:
+      - ${HF_HOME:-~/.cache/huggingface}:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, device_ids: ["0"], capabilities: [gpu]}]
+    restart: unless-stopped
+
+  paddle-vl:
+    # Image officielle PaddleOCR (voir la fiche du modèle PaddlePaddle/PaddleOCR-VL-1.6).
+    image: ccr-2vdh3abv-pub.cnc.bj.baidubce.com/paddlepaddle/paddleocr-genai-vllm-server:latest-nvidia-gpu
+    command: >
+      paddleocr genai_server --model_name PaddleOCR-VL-1.6-0.9B
+      --host 0.0.0.0 --port 8080 --backend vllm
+      --backend_config /config/paddle_vllm.yaml
+    ports: ["8080:8080"]
+    volumes:
+      - ./paddle_vllm.yaml:/config/paddle_vllm.yaml:ro
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, device_ids: ["0"], capabilities: [gpu]}]
+    restart: unless-stopped

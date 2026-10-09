@@ -1,15 +1,17 @@
- # sortie du modèle : champs + confiance + source
-
 """Contrat de sortie du modèle d'extraction.
 
 Principe : le modèle ne « décide » rien. Il produit des valeurs, chacune accompagnée de sa
 confiance, de sa provenance et de sa position dans l'image. Toute la suite (validation
 géométrique, revue par un agent) s'appuie sur ce contrat.
+
+Deux lecteurs indépendants (PaddleOCR-VL-1.6 et Qwen3-VL-8B) lisent chaque document. Chaque
+valeur garde la trace de toutes ses lectures (`readings`) : la valeur retenue, sa confiance et
+la raison du choix restent vérifiables par l'agent et par le journal d'audit.
 """
 from __future__ import annotations
 
 from enum import Enum
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -18,15 +20,19 @@ from model.config import SETTINGS
 T = TypeVar("T")
 
 UTM_28N = "EPSG:32628"
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "2.0"
 REVIEW_THRESHOLD = SETTINGS.review_threshold  # valeur de travail, voir model/config.py
 
 
 class Source(str, Enum):
-    OCR = "ocr"          # lu directement par le moteur OCR
-    PARSER = "parser"    # reconstruit par le parseur (regex, regroupement de tableau)
-    DERIVED = "derived"  # recalculé/corrigé par une règle (ex. distance, superficie)
-    MANUAL = "manual"    # saisi ou corrigé par un agent
+    OCR = "ocr"              # lu directement par un moteur OCR
+    PARSER = "parser"        # reconstruit par le parseur (regex, regroupement de tableau)
+    DERIVED = "derived"      # recalculé/corrigé par une règle (ex. distance, superficie)
+    MANUAL = "manual"        # saisi ou corrigé par un agent
+    PADDLE_VL = "paddle_vl"  # lu par PaddleOCR-VL (tableau structuré, texte de page)
+    QWEN_VL = "qwen_vl"      # lu par Qwen3-VL (JSON au schéma imposé)
+    CONSENSUS = "consensus"  # les deux lecteurs donnent la même chaîne
+    GEOMETRY = "geometry"    # désaccord tranché par la cohérence géométrique
 
 
 class Severity(str, Enum):
@@ -51,6 +57,15 @@ class BBox(BaseModel):
         return self
 
 
+class Reading(BaseModel):
+    """Une lecture brute d'une valeur par un lecteur, conservée pour l'audit."""
+    source: Source
+    raw_text: str | None = None          # chaîne telle que lue
+    normalized: str | None = None        # forme canonique comparée entre lecteurs
+    confidence: float | None = Field(default=None, ge=0.0, le=1.0)  # propre au lecteur, si connue
+    bbox: BBox | None = None
+
+
 class Extracted(BaseModel, Generic[T]):
     """Une valeur extraite, avec de quoi la juger et la retrouver dans l'image."""
     value: T | None = None
@@ -58,6 +73,7 @@ class Extracted(BaseModel, Generic[T]):
     source: Source = Source.OCR
     raw_text: str | None = None   # texte brut lu, avant nettoyage
     bbox: BBox | None = None
+    readings: list[Reading] = Field(default_factory=list)
 
     @property
     def present(self) -> bool:
@@ -98,6 +114,16 @@ class Issue(BaseModel):
     point_labels: list[str] = Field(default_factory=list)
 
 
+class Provenance(BaseModel):
+    """De quoi rejouer et auditer une extraction : document, modèles, réglages, durées."""
+    input_sha256: str | None = None
+    pipeline_version: str = SCHEMA_VERSION
+    models: dict[str, str] = Field(default_factory=dict)       # rôle -> identifiant du modèle
+    preprocessing: dict[str, Any] = Field(default_factory=dict)
+    timings_s: dict[str, float] = Field(default_factory=dict)
+    errors: dict[str, str] = Field(default_factory=dict)       # lecteur -> erreur rencontrée
+
+
 class Extraction(BaseModel):
     """Résultat complet pour un document."""
     schema_version: str = SCHEMA_VERSION
@@ -112,9 +138,10 @@ class Extraction(BaseModel):
 
     points: list[BoundaryPoint] = Field(default_factory=list)
     # Distances imprimées sur le plan : l'indice i est le côté du point i vers le point i+1
-    # (le dernier revient au premier). Non extraites par le parseur actuel.
+    # (le dernier revient au premier).
     printed_sides: list[Extracted[float]] = Field(default_factory=list)
     issues: list[Issue] = Field(default_factory=list)
+    provenance: Provenance = Field(default_factory=Provenance)
 
     @property
     def has_error(self) -> bool:

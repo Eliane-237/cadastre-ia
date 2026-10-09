@@ -1,0 +1,3 @@
+# Réglages vLLM du serveur PaddleOCR-VL (partage du GPU avec Qwen3-VL).
+gpu-memory-utilization: 0.25
+max-num-seqs: 64

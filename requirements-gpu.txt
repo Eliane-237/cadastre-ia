@@ -1,0 +1,12 @@
+# Machine GPU (Linux ou WSL2). Voir aussi deploy/docker-compose.yml pour les serveurs.
+-r requirements.txt
+
+# PaddleOCR-VL-1.6 : la mise en page (PP-DocLayout) et l'orientation tournent dans le processus,
+# le VLM derrière le serveur vLLM. PaddlePaddle GPU s'installe depuis l'index Paddle :
+#   pip install paddlepaddle-gpu==3.2.1 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
+paddleocr[doc-parser]>=3.6.0
+
+# Seulement pour CADASTRE_QWEN_BACKEND=local (Qwen3-VL dans le processus, sans vLLM).
+torch>=2.5
+transformers>=4.57
+accelerate>=1.0

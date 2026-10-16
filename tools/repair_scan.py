@@ -12,28 +12,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 from model.digit_repair import find_repair, shoelace
-
-# Meme motif que `model.normalize._AREA_HA_A_CA`, recopie ici pour que l'outil de
-# diagnostic reste autonome (il ne depend que de `model.digit_repair`).
-_AREA = re.compile(
-    r"(?:(\d{1,4})\s*ha(?![a-z]))?"
-    r"\s*(?:(\d{1,2})\s*[a\u00b0o\u00ba'\u2019\"](?:res?)?(?![a-z]))?"
-    r"\s*(?:(\d{1,2})\s*(?:ca|['\u2019\"]\s*ca|['\u2019\"])(?![a-z]))?",
-    re.IGNORECASE,
-)
-
-
-def _area_from_text(raw: str) -> float | None:
-    for m in _AREA.finditer(raw):
-        ha, a, ca = m.group(1), m.group(2), m.group(3)
-        if not (ha or a or ca):
-            continue
-        return float(int(ha or 0) * 10_000 + int(a or 0) * 100 + int(ca or 0))
-    return None
+from model.normalize import parse_area
 
 READINGS = Path("reports/readings")
 
@@ -48,9 +30,9 @@ def _printed_m2(extraction: dict) -> float | None:
     field = extraction.get("printed_area") or {}
     raw = field.get("raw_text")
     if isinstance(raw, str):
-        m2 = _area_from_text(raw)
-        if m2:
-            return m2
+        area = parse_area(raw)
+        if area is not None and area.m2:
+            return float(area.m2)
     value = field.get("value")
     if not isinstance(value, dict):
         return None

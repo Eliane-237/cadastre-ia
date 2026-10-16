@@ -3,17 +3,14 @@
 Aucune de ces valeurs n'est mesurée à ce stade : elles seront recalibrées sur les titres annotés
 (voir eval/). On les garde ici, et nulle part ailleurs, pour pouvoir les changer en un point.
 
-Les points d'accès aux modèles se surchargent par variables d'environnement (voir `from_env`),
-pour passer d'un poste à un serveur GPU sans toucher au code.
+Les deux modèles tournent chacun derrière un serveur llama.cpp (`llama-server`, voir
+scripts/). Leurs adresses se surchargent par variables d'environnement (voir `from_env`).
 """
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field, replace
-from typing import Literal
-
-Backend = Literal["server", "local"]
 
 
 @dataclass(frozen=True)
@@ -21,15 +18,19 @@ class PaddleSettings:
     """PaddleOCR-VL-1.6 : parsing de page (blocs + tableaux en structure)."""
 
     pipeline_version: str = "v1.6"
-    # « server » : le VLM tourne derrière un serveur vLLM / genai_server (recommandé sur GPU) ;
-    # « local » : tout dans le processus Python (plus simple, plus lent).
-    backend: Backend = "server"
+    # Serveur du VLM : llama.cpp (scripts/start_paddle_server.ps1). PaddleOCR accepte aussi
+    # « vllm-server » si on passe un jour sur un serveur Linux.
+    server_kind: str = "llama-cpp-server"
     server_url: str = "http://127.0.0.1:8080/v1"
-    device: str | None = None  # ex. « gpu:0 » ; None = choix de PaddleOCR
+    # Où tourne la mise en page (PP-DocLayout) dans le processus : « gpu:0 », « cpu »…
+    # « cpu » laisse toute la mémoire GPU aux deux VLM (petites cartes).
+    device: str | None = None
     use_doc_orientation_classify: bool = True  # corrige 90/180/270°
     # Dépliage des pages courbées (UVDoc). Désactivé : notre redressement de perspective suffit
     # pour les photos à plat, et l'image brute donne de meilleurs résultats sur les scans.
     use_doc_unwarping: bool = False
+    merge_layout_blocks: bool = False
+    layout_merge_bboxes_mode: str = "small"
 
 
 @dataclass(frozen=True)
@@ -37,8 +38,7 @@ class QwenSettings:
     """Qwen3-VL-8B-Instruct : remplissage du JSON de l'`Extraction` (deuxième lecture)."""
 
     model: str = "Qwen/Qwen3-VL-8B-Instruct"
-    backend: Backend = "server"
-    server_url: str = "http://127.0.0.1:8000/v1"  # API compatible OpenAI (vLLM)
+    server_url: str = "http://127.0.0.1:8000/v1"  # llama-server, API compatible OpenAI
     api_key: str = "EMPTY"
     timeout_s: float = 180.0
     max_new_tokens: int = 2048
@@ -56,6 +56,12 @@ class Settings:
     # Tolérances de cohérence géométrique (à calibrer).
     side_tolerance_m: float = 0.05
     area_tolerance_pct: float = 0.5
+    # Colonne des côtés imprimés : un côté sous 1 % de la longueur caractéristique
+    # (racine de la superficie) est un débris de cellule, pas une limite de parcelle.
+    sides_fragment_ratio: float = 0.01
+    # Une colonne constante n'est crue que si la superficie imprimée correspond au
+    # polygone régulier : c'est la seule parcelle réelle à côtés tous égaux.
+    sides_regular_tolerance_pct: float = 5.0
     # Plages plausibles en UTM 28N pour le Sénégal (m). Larges à dessein : elles écartent les
     # lectures absurdes, pas les parcelles inhabituelles. À resserrer avec les données du cadastre.
     easting_range: tuple[float, float] = (100_000.0, 900_000.0)
@@ -72,6 +78,11 @@ class Settings:
     # Plafond d'une coordonnée (ou d'une distance) lue par un seul lecteur : sous le seuil de
     # revue, car une seule lecture d'un chiffre n'est jamais une preuve suffisante.
     conf_single_coordinate_cap: float = 0.60
+    # Deux lectures qui ne diffèrent que par l'orthographe (« Mornoz »/« Mermoz »,
+    # « 14 DEC 2020 »/« 1.4.DEC.2020 ») : accord, mais un cran sous l'accord exact.
+    conf_near_agree: float = 0.95
+    # Similarité minimale pour y prétendre. Les chiffres, eux, doivent être identiques.
+    near_agree_ratio: float = 0.85
     conf_conflict: float = 0.30  # désaccord non tranché : revue humaine
     # Nombre maximal de coordonnées en désaccord pour lesquelles on teste toutes les
     # combinaisons (2^n) afin que la géométrie tranche.
@@ -87,13 +98,12 @@ def from_env(base: Settings | None = None) -> Settings:
     env = os.environ
     paddle = replace(
         s.paddle,
-        backend=env.get("CADASTRE_PADDLE_BACKEND", s.paddle.backend),  # type: ignore[arg-type]
+        server_kind=env.get("CADASTRE_PADDLE_SERVER_KIND", s.paddle.server_kind),
         server_url=env.get("CADASTRE_PADDLE_URL", s.paddle.server_url),
         device=env.get("CADASTRE_PADDLE_DEVICE", s.paddle.device),
     )
     qwen = replace(
         s.qwen,
-        backend=env.get("CADASTRE_QWEN_BACKEND", s.qwen.backend),  # type: ignore[arg-type]
         server_url=env.get("CADASTRE_QWEN_URL", s.qwen.server_url),
         model=env.get("CADASTRE_QWEN_MODEL", s.qwen.model),
         api_key=env.get("CADASTRE_QWEN_API_KEY", s.qwen.api_key),

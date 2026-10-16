@@ -1,7 +1,7 @@
 import pytest
 
 from model.schema import Area, BoundaryPoint, Extracted, Extraction, Severity
-from model.validate import shoelace_area, side_length, validate, validated
+from model.validate import shoelace_area, side_length, unreliable_sides, validate, validated
 
 BASE_X, BASE_Y = 300_000.0, 1_600_000.0
 
@@ -117,3 +117,43 @@ def test_validated_ajoute_sans_toucher_loriginal():
     e = square(area=11_580)
     v = validated(e)
     assert e.issues == [] and "AREA_MISMATCH" in codes(v.issues) and v.needs_review()
+
+
+# --------------------------------------------------------- colonne des côtés imprimés
+
+_NGUEKOKH = [21.64, 13.68, 19.32, 12.44, 12.44, 21.05, 30.94, 19.15, 30.94,
+             12.44, 12.44, 12.44, 12.44, 12.44, 12.44]
+
+
+@pytest.mark.parametrize(
+    "printed, printed_m2, motif",
+    [
+        # Colonnes réellement lues sur le corpus, et pourquoi elles sont fausses.
+        ([11.6] * 4, 221.0, "colonne constante"),            # tf kaolack : côtés réels ~15 m
+        ([15.0] * 4, 300.0, "colonne constante"),            # images.jfif : parcelle 15 x 20
+        ([16.0] * 15, 649.0, "colonne constante"),           # images (7)
+        ([46.83, 101.4, 0.17, 0.29, 0.37, 0.47, 0.45, 101.4], 4489.0, "découpage"),  # images (4)
+        (_NGUEKOKH, 9397.0, "périmètre"),                    # côtés partiellement recopiés
+        # Inégalité polygonale : un côté ne peut dépasser la somme des autres.
+        ([100.0, 10.0, 10.0], 500.0, "somme des autres"),
+    ],
+)
+def test_cotes_imprimes_ecartes(printed, printed_m2, motif):
+    raison = unreliable_sides(printed, printed_m2)
+    assert raison is not None and motif in raison
+
+
+@pytest.mark.parametrize(
+    "printed, printed_m2",
+    [
+        ([16.67, 15.35, 16.68, 15.26], 255.0),                       # tf.jpg
+        ([157.42, 96.82, 190.8, 113.94, 62.58, 225.5, 232.8, None], 58941.0),  # 54987580
+        ([39.73, 61.5, 22.2, 47.0, 20.1], 2100.0),                   # tf mbour
+        ([30.59, 27.34, 29.47, 26.43], None),                        # superficie non lue
+        ([10.0, 15.0, 10.0, 15.0], 150.0),                           # lot 10 x 15 : côtés vrais
+        ([15.0] * 4, 225.0),                 # lot carré : colonne constante légitime
+        ([None] * 4, 255.0),                                         # colonne vide
+    ],
+)
+def test_cotes_imprimes_conserves(printed, printed_m2):
+    assert unreliable_sides(printed, printed_m2) is None

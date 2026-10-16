@@ -43,19 +43,64 @@ def _drop_closing_point(points: list[BoundaryPoint]) -> list[BoundaryPoint]:
     return points
 
 
+# Systemes de reference rencontres sur les titres senegalais. RRS / RSS sont le reseau
+# national, exprime en UTM 28N ; HATT est une autre projection, incompatible avec nos
+# plages et avec un calcul de surface en metres.
+_CRS_UTM28N = ("RRS", "RSS")
+_CRS_AUTRES = ("HATT",)
+
+
+def crs_is_utm28n(declared: str | None) -> bool | None:
+    """True si le systeme declare est compatible UTM 28N, False si non, None si inconnu."""
+    if not declared:
+        return None
+    text = declared.upper()
+    if any(k in text for k in _CRS_AUTRES):
+        return False
+    if any(k in text for k in _CRS_UTM28N):
+        return True
+    return None
+
+
+def _out_of_range(p: BoundaryPoint, cfg: Settings) -> list[str]:
+    bad = []
+    if not cfg.easting_range[0] <= p.x.value <= cfg.easting_range[1]:  # type: ignore[operator]
+        bad.append(f"X={p.x.value}")
+    if not cfg.northing_range[0] <= p.y.value <= cfg.northing_range[1]:  # type: ignore[operator]
+        bad.append(f"Y={p.y.value}")
+    return bad
+
+
 def _check_values(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
     issues: list[Issue] = []
+
+    # Si la plupart des points sortent de la plage, ce n'est pas une lecture fautive :
+    # le document est dans un autre referentiel. Un seul point hors plage, en revanche,
+    # est bien un chiffre mal lu (« 38210.57 » pour « 381210.57 »).
+    complete = [p for p in points if p.complete]
+    hors = [p for p in complete if _out_of_range(p, cfg)]
+    if complete and len(hors) > len(complete) / 2:
+        return [
+            Issue(
+                code="CRS_HORS_UTM28N",
+                severity=Severity.WARNING,
+                point_labels=[p.label for p in hors],
+                message=(
+                    f"{len(hors)} des {len(complete)} point(s) complets hors de la plage "
+                    f"UTM 28N (sur {len(points)} lus) : le document est probablement "
+                    "exprimé dans un autre système de coordonnées. Contrôles géométriques "
+                    "non applicables."
+                ),
+            )
+        ]
+
     for p in points:
         if not p.complete:
             missing = [a for a in ("x", "y") if not getattr(p, a).present]
             issues.append(Issue(code="POINT_INCOMPLETE", severity=Severity.ERROR, point_labels=[p.label],
                                 message=f"Point {p.label} : coordonnée {', '.join(missing)} non lue."))
             continue
-        bad = []
-        if not cfg.easting_range[0] <= p.x.value <= cfg.easting_range[1]:  # type: ignore[operator]
-            bad.append(f"X={p.x.value}")
-        if not cfg.northing_range[0] <= p.y.value <= cfg.northing_range[1]:  # type: ignore[operator]
-            bad.append(f"Y={p.y.value}")
+        bad = _out_of_range(p, cfg)
         if bad:
             issues.append(Issue(code="COORD_OUT_OF_RANGE", severity=Severity.ERROR, point_labels=[p.label],
                                 message=f"Point {p.label} hors de la plage UTM 28N attendue ({', '.join(bad)})."))
@@ -74,7 +119,77 @@ def _check_values(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
     return issues
 
 
-def _check_sides(points: list[BoundaryPoint], printed: list, cfg: Settings) -> list[Issue]:
+def _regular_polygon_area(side: float, n: int) -> float:
+    """Aire du polygone régulier : le maximum atteignable avec n côtés tous égaux."""
+    return n * side * side / (4 * math.tan(math.pi / n))
+
+
+def unreliable_sides(
+    printed: list[float | None], printed_m2: float | None, cfg: Settings = SETTINGS
+) -> str | None:
+    """Pourquoi la colonne des côtés imprimés n'est pas croyable, ou None si elle l'est.
+
+    Cette colonne sert de preuve indépendante pour départager deux lectures d'une
+    coordonnée. Mal lue, elle fait condamner des lectures correctes et absoudre des
+    fausses : une colonne absente ne coûte qu'une contrainte en moins, une colonne
+    fausse coûte la vérité. En cas de doute on la rejette entière, car une colonne
+    où une case a mal été découpée n'est fiable sur aucune de ses lignes.
+    """
+    reels = [c for c in printed if c is not None]
+    if not reels:
+        return None
+    perimetre = sum(reels)
+
+    # Inégalité polygonale : dans tout polygone fermé, un côté est strictement
+    # inférieur à la somme de tous les autres.
+    for c in reels:
+        if c >= perimetre - c:
+            return f"côté imprimé {c:.2f} m supérieur à la somme des autres ({perimetre - c:.2f} m)"
+
+    if printed_m2:
+        caracteristique = math.sqrt(printed_m2)
+        debris = [c for c in reels if c < cfg.sides_fragment_ratio * caracteristique]
+        if debris:
+            return (
+                f"côté(s) imprimé(s) {', '.join(f'{c:.2f}' for c in debris)} m sous "
+                f"{cfg.sides_fragment_ratio:.0%} de la longueur caractéristique "
+                f"({caracteristique:.2f} m) : découpage de cellule manqué"
+            )
+        if len(set(reels)) == 1 and len(reels) >= 3:
+            maxi = _regular_polygon_area(reels[0], len(reels))
+            if abs(maxi - printed_m2) / printed_m2 > cfg.sides_regular_tolerance_pct / 100:
+                return (
+                    f"colonne constante ({reels[0]:.2f} m sur {len(reels)} lignes) "
+                    f"incompatible avec la superficie : un polygone régulier de ce côté "
+                    f"ferait {maxi:.0f} m² contre {printed_m2:.0f} m² imprimés ; "
+                    "la case a été recopiée"
+                )
+        # Inégalité isopérimétrique : aucune forme fermée de périmètre P n'enferme
+        # plus de P²/4π. Ne vaut que si la colonne est complète.
+        if len(reels) == len(printed) and printed_m2 > perimetre**2 / (4 * math.pi):
+            return (
+                f"superficie imprimée ({printed_m2:.0f} m²) supérieure au maximum "
+                f"qu'enferme ce périmètre ({perimetre:.2f} m donne au plus "
+                f"{perimetre ** 2 / (4 * math.pi):.0f} m²)"
+            )
+    return None
+
+
+def _check_sides(
+    points: list[BoundaryPoint], printed: list, printed_m2: float | None, cfg: Settings
+) -> list[Issue]:
+    # Une colonne mal lue produirait un côté fautif par ligne et ferait accuser des
+    # coordonnées correctes : on la rejette d'un bloc, avec sa raison.
+    if raison := unreliable_sides(
+        [d.value if d.present else None for d in printed], printed_m2, cfg
+    ):
+        return [
+            Issue(
+                code="PRINTED_SIDES_UNRELIABLE",
+                severity=Severity.WARNING,
+                message=f"Longueurs imprimées écartées — {raison}.",
+            )
+        ]
     n = len(points)
     coords = _coords(points)
     failing: list[int] = []
@@ -104,9 +219,27 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
     """Contrôles de cohérence. Les contrôles géométriques ne sont pas faits si une coordonnée est
     manquante ou aberrante : calculer sur des valeurs connues pour fausses induirait en erreur."""
     points = _drop_closing_point(extraction.points)
-    issues = _check_values(points, cfg)
+    issues: list[Issue] = []
 
-    if any(i.severity is Severity.ERROR for i in issues):
+    declared = extraction.coordinate_system.value if extraction.coordinate_system.present else None
+    if crs_is_utm28n(declared) is False:
+        issues.append(
+            Issue(
+                code="CRS_NON_SUPPORTE",
+                severity=Severity.WARNING,
+                message=(
+                    f"Système de coordonnées « {declared} » : ni la plage attendue ni le "
+                    "calcul de surface en UTM 28N ne s'appliquent. Géométrie non contrôlée."
+                ),
+            )
+        )
+        return issues
+
+    issues += _check_values(points, cfg)
+
+    if any(i.severity is Severity.ERROR for i in issues) or any(
+        i.code == "CRS_HORS_UTM28N" for i in issues
+    ):
         issues.append(Issue(code="GEOMETRY_SKIPPED", severity=Severity.INFO,
                             message="Superficie et côtés non contrôlés : des coordonnées sont à corriger d'abord."))
         return issues
@@ -122,8 +255,10 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
                             message="Le polygone se recoupe lui-même : ordre des points ou lecture à vérifier."))
 
     area = shoelace_area(coords)
+    printed_m2: float | None = None
     if extraction.printed_area.present:
         printed = extraction.printed_area.value.m2  # type: ignore[union-attr]
+        printed_m2 = float(printed) if printed else None
         gap = abs(area - printed) / printed * 100 if printed else math.inf
         if gap > cfg.area_tolerance_pct:
             issues.append(Issue(code="AREA_MISMATCH", severity=Severity.ERROR,
@@ -133,7 +268,7 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
         issues.append(Issue(code="AREA_UNAVAILABLE", severity=Severity.INFO,
                             message="Superficie imprimée non lue : cohérence non vérifiée."))
 
-    issues.extend(_check_sides(points, extraction.printed_sides, cfg))
+    issues.extend(_check_sides(points, extraction.printed_sides, printed_m2, cfg))
     return issues
 
 

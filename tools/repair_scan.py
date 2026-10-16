@@ -16,6 +16,7 @@ from pathlib import Path
 
 from model.digit_repair import find_repair, shoelace
 from model.normalize import parse_area
+from model.validate import unreliable_sides
 
 READINGS = Path("reports/readings")
 
@@ -68,9 +69,13 @@ def _coords(extraction: dict) -> tuple[list[str], list[str]] | None:
     return xs, ys
 
 
-def _sides(extraction: dict) -> list[float | None] | None:
+def _sides(extraction: dict, printed_m2: float | None) -> tuple[list[float | None] | None, str | None]:
     sides = [s.get("value") for s in (extraction.get("printed_sides") or [])]
-    return sides if any(s is not None for s in sides) else None
+    if not any(s is not None for s in sides):
+        return None, None
+    if raison := unreliable_sides(sides, printed_m2):
+        return None, raison
+    return sides, None
 
 
 def scan(path: Path, tolerance_pct: float, side_tolerance_m: float) -> str:
@@ -90,8 +95,13 @@ def scan(path: Path, tolerance_pct: float, side_tolerance_m: float) -> str:
     area = shoelace(points)
     gap = abs(area - printed) / printed * 100
 
-    sides = _sides(extraction)
-    marque = "" if sides else "  (sans longueurs de cotes)"
+    sides, raison = _sides(extraction, printed)
+    if raison:
+        marque = f"  (cotes ecartes : {raison})"
+    elif not sides:
+        marque = "  (sans longueurs de cotes)"
+    else:
+        marque = ""
 
     repair = find_repair(
         xs,

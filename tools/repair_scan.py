@@ -82,6 +82,11 @@ def scan(path: Path, tolerance_pct: float, side_tolerance_m: float) -> str:
     extraction = json.loads(path.read_text(encoding="utf-8"))
     name = path.stem
 
+    # Les fichiers de lectures appariees ({paddle_vl, qwen_vl}) ne sont pas des
+    # extractions : les compter comme documents faussait le decompte du corpus.
+    if "points" not in extraction and {"paddle_vl", "qwen_vl"} & extraction.keys():
+        return ""
+
     coords = _coords(extraction)
     if coords is None:
         return f"{name:42s} -- moins de 3 points complets, rien a verifier"
@@ -144,9 +149,11 @@ def main() -> None:
         print(f"aucune extraction dans {args.dir}")
         return
 
-    print(f"{len(fichiers)} extraction(s) dans {args.dir}\n")
-    for path in fichiers:
-        print(scan(path, args.tolerance_pct, args.side_tolerance_m))
+    lignes = [scan(p, args.tolerance_pct, args.side_tolerance_m) for p in fichiers]
+    lignes = [ligne for ligne in lignes if ligne]
+    print(f"{len(lignes)} extraction(s) retenue(s)\n")
+    for ligne in lignes:
+        print(ligne)
 
 
 if __name__ == "__main__":

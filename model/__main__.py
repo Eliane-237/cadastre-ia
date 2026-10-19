@@ -2,7 +2,7 @@
                            [--only paddle|qwen]
 
 Les serveurs des modèles se règlent par variables d'environnement (voir model/config.py) :
-CADASTRE_PADDLE_URL, CADASTRE_QWEN_URL, CADASTRE_*_BACKEND=server|local.
+CADASTRE_PADDLE_URL, CADASTRE_QWEN_URL, CADASTRE_PADDLE_DEVICE (voir scripts/set_env.ps1).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from pathlib import Path
 
 from model.config import from_env
 from model.extract import run
-from model.readers.base import reading_to_dict
+from model.reading import reading_to_dict
 from model.schema import Severity
 
 _ICON = {Severity.ERROR: "✗", Severity.WARNING: "!", Severity.INFO: "i"}

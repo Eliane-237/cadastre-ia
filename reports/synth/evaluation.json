@@ -1,0 +1,715 @@
+{
+  "summary": {
+    "fusion": {
+      "documents": 5,
+      "values": 82,
+      "exact": 0,
+      "near": 0,
+      "wrong": 0,
+      "missing": 82,
+      "exact_rate": 0.0,
+      "spurious_points": 0
+    }
+  },
+  "review": 5,
+  "calibration": [
+    {
+      "from": 0.0,
+      "to": 0.5,
+      "n": 0,
+      "errors": 0,
+      "error_rate": null
+    },
+    {
+      "from": 0.5,
+      "to": 0.7,
+      "n": 0,
+      "errors": 0,
+      "error_rate": null
+    },
+    {
+      "from": 0.7,
+      "to": 0.85,
+      "n": 0,
+      "errors": 0,
+      "error_rate": null
+    },
+    {
+      "from": 0.85,
+      "to": 0.95,
+      "n": 0,
+      "errors": 0,
+      "error_rate": null
+    },
+    {
+      "from": 0.95,
+      "to": 1.0,
+      "n": 0,
+      "errors": 0,
+      "error_rate": null
+    }
+  ],
+  "threshold": {
+    "threshold": null,
+    "accepted": 0,
+    "review_share": 1.0
+  },
+  "results": [
+    {
+      "document_id": "synth_0000",
+      "field": "title_number",
+      "expected": "tf 18443/dk",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "nicad",
+      "expected": "56593877840801",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "locality",
+      "expected": "rufisque est",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "printed_area_m2",
+      "expected": "266",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[0].x",
+      "expected": "289118.41",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[0].y",
+      "expected": "1650312.08",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[1].x",
+      "expected": "289106.93",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[1].y",
+      "expected": "1650309.88",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[2].x",
+      "expected": "289101.44",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[2].y",
+      "expected": "1650312.41",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[3].x",
+      "expected": "289099.57",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[3].y",
+      "expected": "1650321.11",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[4].x",
+      "expected": "289104.62",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[4].y",
+      "expected": "1650328.96",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[5].x",
+      "expected": "289115.14",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[5].y",
+      "expected": "1650324.98",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[6].x",
+      "expected": "289118.45",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0000",
+      "field": "points[6].y",
+      "expected": "1650320.39",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "title_number",
+      "expected": "tf 18031/mb",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "nicad",
+      "expected": "47196593423209",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "locality",
+      "expected": "bambilor",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "printed_area_m2",
+      "expected": "3545",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[0].x",
+      "expected": "287982.42",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[0].y",
+      "expected": "1633289.22",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[1].x",
+      "expected": "287939.84",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[1].y",
+      "expected": "1633293.06",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[2].x",
+      "expected": "287929.50",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[2].y",
+      "expected": "1633319.09",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[3].x",
+      "expected": "287951.36",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[3].y",
+      "expected": "1633358.97",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[4].x",
+      "expected": "287975.68",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[4].y",
+      "expected": "1633369.02",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[5].x",
+      "expected": "287996.06",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0001",
+      "field": "points[5].y",
+      "expected": "1633313.18",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "title_number",
+      "expected": "tf 12291/dg",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "nicad",
+      "expected": "56012309891013",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "locality",
+      "expected": "yene",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "printed_area_m2",
+      "expected": "4820",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[0].x",
+      "expected": "294660.55",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[0].y",
+      "expected": "1653660.18",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[1].x",
+      "expected": "294634.74",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[1].y",
+      "expected": "1653661.88",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[2].x",
+      "expected": "294597.80",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[2].y",
+      "expected": "1653676.86",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[3].x",
+      "expected": "294602.57",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[3].y",
+      "expected": "1653720.00",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[4].x",
+      "expected": "294632.45",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[4].y",
+      "expected": "1653740.16",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[5].x",
+      "expected": "294665.12",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[5].y",
+      "expected": "1653735.67",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[6].x",
+      "expected": "294677.28",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0002",
+      "field": "points[6].y",
+      "expected": "1653698.99",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "title_number",
+      "expected": "tf 12921/dg",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "nicad",
+      "expected": "45792302258419",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "locality",
+      "expected": "keur massar",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "printed_area_m2",
+      "expected": "3178",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[0].x",
+      "expected": "232561.18",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[0].y",
+      "expected": "1620826.19",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[1].x",
+      "expected": "232523.62",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[1].y",
+      "expected": "1620838.79",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[2].x",
+      "expected": "232526.61",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[2].y",
+      "expected": "1620896.69",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[3].x",
+      "expected": "232552.16",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[3].y",
+      "expected": "1620898.25",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[4].x",
+      "expected": "232588.12",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0003",
+      "field": "points[4].y",
+      "expected": "1620864.78",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "title_number",
+      "expected": "tf 19583/dg",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "nicad",
+      "expected": "52337696069602",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "locality",
+      "expected": "sangalkam",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "printed_area_m2",
+      "expected": "633",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[0].x",
+      "expected": "275430.20",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[0].y",
+      "expected": "1635533.44",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[1].x",
+      "expected": "275418.68",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[1].y",
+      "expected": "1635531.32",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[2].x",
+      "expected": "275408.64",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[2].y",
+      "expected": "1635543.73",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[3].x",
+      "expected": "275421.37",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[3].y",
+      "expected": "1635562.22",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[4].x",
+      "expected": "275433.50",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[4].y",
+      "expected": "1635559.28",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[5].x",
+      "expected": "275441.64",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    },
+    {
+      "document_id": "synth_0004",
+      "field": "points[5].y",
+      "expected": "1635547.47",
+      "got": null,
+      "confidence": null,
+      "outcome": "missing"
+    }
+  ]
+}

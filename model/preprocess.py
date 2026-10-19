@@ -73,23 +73,75 @@ def _order_quad(pts: np.ndarray) -> np.ndarray:
     )
 
 
-def find_document_quad(image: np.ndarray) -> np.ndarray | None:
-    """Repère la feuille dans une photo (quadrilatère dominant). Un scan qui occupe déjà toute
-    l'image ne renvoie rien : on ne recadre pas ce qui n'en a pas besoin."""
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    scale = 1000 / max(gray.shape)
-    small = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+# Au-delà de cette part de l'image, le quadrilatère EST l'image : recadrer n'apporte rien
+# et risque de rogner un bord. En deçà, c'est une feuille photographiée dans un décor.
+MAX_PAGE_RATIO = 0.90
+MIN_PAGE_RATIO = 0.15
+
+
+def _quad_from_contour(contour: np.ndarray) -> np.ndarray | None:
+    """Simplifie un contour en quadrilatère convexe. L'epsilon est balayé : un seul seuil
+    échoue sur les feuilles aux bords froissés ou ombrés (4 pages sur 16 du corpus)."""
+    peri = cv2.arcLength(contour, True)
+    for eps in (0.01, 0.02, 0.03, 0.04, 0.06, 0.08):
+        approx = cv2.approxPolyDP(contour, eps * peri, True)
+        if len(approx) == 4 and cv2.isContourConvex(approx):
+            return approx
+    return None
+
+
+def _page_by_edges(small: np.ndarray, area_img: float) -> np.ndarray | None:
     edges = cv2.Canny(cv2.GaussianBlur(small, (5, 5), 0), 50, 150)
     edges = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=2)
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    area_img = small.shape[0] * small.shape[1]
     for cnt in sorted(contours, key=cv2.contourArea, reverse=True)[:5]:
-        if not 0.3 * area_img < cv2.contourArea(cnt) < 0.95 * area_img:
+        area = cv2.contourArea(cnt)
+        if not MIN_PAGE_RATIO * area_img < area < MAX_PAGE_RATIO * area_img:
             continue
-        approx = cv2.approxPolyDP(cnt, 0.02 * cv2.arcLength(cnt, True), True)
-        if len(approx) == 4 and cv2.isContourConvex(approx):
-            return _order_quad(approx / scale)
+        quad = _quad_from_contour(cnt)
+        if quad is not None:
+            return quad
     return None
+
+
+def _page_by_brightness(small: np.ndarray, area_img: float) -> np.ndarray | None:
+    """Repli : la feuille est la grande zone claire. Canny fragmente les bords quand le
+    contraste papier/fond est faible ou que plusieurs documents sont empilés."""
+    _, binary = cv2.threshold(
+        cv2.GaussianBlur(small, (7, 7), 0), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
+    )
+    binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+    binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for cnt in sorted(contours, key=cv2.contourArea, reverse=True)[:3]:
+        area = cv2.contourArea(cnt)
+        if not MIN_PAGE_RATIO * area_img < area < MAX_PAGE_RATIO * area_img:
+            continue
+        quad = _quad_from_contour(cnt)
+        if quad is not None:
+            return quad
+        box = cv2.boxPoints(cv2.minAreaRect(cnt))
+        if cv2.contourArea(box) <= 1.4 * area:
+            return box.astype(np.int32).reshape(4, 1, 2)
+    return None
+
+
+def find_document_quad(image: np.ndarray) -> np.ndarray | None:
+    """Repère la feuille dans une photo (quadrilatère dominant). Un scan qui occupe déjà toute
+    l'image ne renvoie rien : on ne recadre pas ce qui n'en a pas besoin.
+
+    Deux détecteurs en cascade : les bords (Canny), puis la luminosité. Mesuré sur le corpus,
+    les bords seuls trouvent la page sur 9 documents sur 16 ; la luminosité en rattrape 6,
+    dont les photos prises sur un bureau où le décor entre dans le cadre."""
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    scale = 1000 / max(gray.shape)
+    small = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    area_img = float(small.shape[0] * small.shape[1])
+
+    quad = _page_by_edges(small, area_img)
+    if quad is None:
+        quad = _page_by_brightness(small, area_img)
+    return None if quad is None else _order_quad(quad.astype(np.float32) / scale)
 
 
 def warp_quad(image: np.ndarray, quad: np.ndarray) -> np.ndarray:
@@ -202,6 +254,14 @@ def preprocess(
             image = rotate(image, angle)
     steps["output_shape"] = list(image.shape[:2])
     return image, steps
+
+
+def apply_orientation(image: np.ndarray, angle_deg: int | None) -> np.ndarray:
+    """Même rotation que PaddleOCR (anti-horaire, multiples de 90°) : permet à Qwen3-VL de lire
+    la page dans le sens retenu par PaddleOCR-VL lors d'une passe séparée."""
+    if not angle_deg or angle_deg % 90:
+        return image
+    return np.ascontiguousarray(np.rot90(image, (angle_deg // 90) % 4))
 
 
 def encode_png(image: np.ndarray) -> bytes:

@@ -5,8 +5,8 @@ bruit, compression) sans exposer de données réelles, qui ne sont jamais versio
 Les documents générés sont fictifs ; leur mise en page reste à rapprocher des modèles
 réels utilisés par le cadastre.
 
-Usage : python -m eval.synth --out data/synth --n 20 --seed 0 [--hard]
-puis   python -m eval.run_baseline data/synth/raw data/synth/annotations reports/synth
+Usage : python -m eval.synthetic_documents --out data/synth --n 20 --seed 0 [--hard]
+puis   python -m eval.evaluate data/synth/raw data/synth/annotations reports/synth
 """
 
 from __future__ import annotations
@@ -154,7 +154,7 @@ def render(rng: random.Random, width: int = 1654, height: int = 2339) -> SynthDo
         image="",
         title_number=f"TF {tf}",
         nicad=nicad,
-        locality=commune,
+        commune=commune,
         printed_area=Area(ha=ha, a=rest // 100, ca=rest % 100),
         points=[
             AnnotatedPoint(label=lab, x=f"{x:.2f}", y=f"{y:.2f}")

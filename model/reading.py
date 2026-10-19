@@ -1,7 +1,7 @@
 """Contrat commun aux lecteurs : une lecture brute, avant toute fusion.
 
 Un lecteur ne décide rien : il rapporte ce qu'il a lu, en chaînes (« 381210.57 » et non
-381210.57), avec sa propre confiance quand il en a une. La fusion (model/fusion.py) compare
+381210.57), avec sa propre confiance quand il en a une. La fusion (model/merge_readings.py) compare
 ensuite les lectures, et la validation géométrique départage.
 """
 
@@ -14,9 +14,9 @@ from typing import Any, Protocol
 import numpy as np
 from pydantic import BaseModel
 
-from model.schema import BBox, Source
+from model.schema import Area, BBox, Source, TEXT_FIELDS
 
-FIELDS = ("title_number", "nicad", "owner", "locality", "area")
+FIELDS = (*TEXT_FIELDS, "area")
 
 
 @dataclass
@@ -24,6 +24,7 @@ class FieldReading:
     raw: str | None
     confidence: float | None = None
     bbox: BBox | None = None
+    area: Area | None = None
 
 
 @dataclass

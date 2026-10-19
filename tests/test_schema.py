@@ -52,7 +52,7 @@ def test_point_peu_fiable_est_signale():
 def test_erreur_force_la_revue_meme_si_tout_est_fiable():
     full = Extracted[str](value="x", confidence=0.99)
     e = Extraction(
-        document_id="D02", title_number=full, nicad=full, owner=full, locality=full,
+        document_id="D02", title_number=full, nicad=full, owner=full, commune=full,
         printed_area=Extracted[Area](value=Area(ca=2100), confidence=0.99),
     )
     assert not e.needs_review()

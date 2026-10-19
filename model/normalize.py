@@ -89,10 +89,11 @@ def integer_digits(canonical: str) -> int:
 # « ° », « o », « º », une apostrophe ou une étoile, et « ᶜᵃ » par une apostrophe
 # suivie ou non de « ca ».
 _ARES_MARK = r"[a°oº'’\"*]"
+_SEP_UNITE = r"[\s.]*"          # « 8.a 07ca » : un point separe parfois le nombre de l'unite
 _AREA_HA_A_CA = re.compile(
-    r"(?:(\d{1,4})\s*ha(?![a-z]))?"
-    r"\s*(?:(\d{1,2})\s*" + _ARES_MARK + r"(?:res?)?(?![a-z]))?"
-    r"\s*(?:(\d{1,2})\s*(?:ca|['’\"]\s*ca|['’\"])(?![a-z]))?",
+    r"(?:(\d{1,4})" + _SEP_UNITE + r"ha(?![a-z]))?"
+    r"\s*(?:(\d{1,2})" + _SEP_UNITE + _ARES_MARK + r"(?:res?)?(?![a-z]))?"
+    r"\s*(?:(\d{1,2})" + _SEP_UNITE + r"(?:ca|['’\"]\s*ca|['’\"])(?![a-z]))?",
     re.IGNORECASE,
 )
 # Les centiares suivent toujours les ares : quand leur exposant a disparu, un groupe

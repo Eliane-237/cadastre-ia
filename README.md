@@ -1,166 +1,170 @@
 # cadastre-ia
 
-Modèle d'extraction des titres fonciers et plans de bornage (coordonnées UTM 28N) pour le
-cadastre sénégalais.
+Extraction des titres fonciers et plans de bornage du cadastre sénégalais (coordonnées UTM 28N).
 
-Le système est un **outil d'alerte et d'aide à la décision**. Il extrait les champs de
-l'`Extraction` (n° de titre, NICAD, propriétaire, localité, superficie, points X/Y, distances),
-vérifie leur cohérence et dit ce qui doit être relu. Le rejet d'un dossier reste une décision
-humaine et juridique.
+Le système lit un document (scan, photo, PDF) et remplit l'`Extraction` : n° de titre, NICAD,
+propriétaire, localité, superficie, points X/Y, distances. Il vérifie ensuite la cohérence de
+ces valeurs et signale ce qui doit être relu. C'est un **outil d'alerte et d'aide à la
+décision** : le rejet d'un dossier reste une décision humaine et juridique.
 
-## Architecture
+## Démarrage rapide (Windows, GPU NVIDIA)
 
-```
-document (photo, scan, PDF)
-  │
-  ├─ model/imaging.py      perspective (photo) et éclairage inégal, seulement si détectés
-  │
-  ├─ PaddleOCR-VL-1.6      orientation 90/180/270°, blocs de page, tableaux en HTML
-  │  model/readers/paddle_vl.py + model/tables.py  → tableau de coordonnées (+ n° TF, NICAD,
-  │                                                  superficie repérés par motif)
-  │
-  ├─ Qwen3-VL-8B-Instruct  JSON imposé au décodage : tous les champs, tableau compris
-  │  model/readers/qwen_vl.py  → deuxième lecture indépendante, confiance par champ (logprobs)
-  │
-  ├─ model/fusion.py       compare les deux lectures, chiffre à chiffre
-  │
-  └─ model/validate.py     surface de Gauss, plage UTM 28N, côtés, polygone
-                           → Extraction (+ issues, + provenance pour l'audit)
-```
+Prévu pour une RTX 3060 12 Go. Deux modèles tournent chacun derrière un serveur llama.cpp.
 
-Les deux lecteurs ont des rôles différents :
+**1. Installer (une seule fois)**
 
-- **PaddleOCR-VL-1.6** lit la page entière (titres, paragraphes, tableaux, cachets) et rend les
-  tableaux en structure. Il ne sait pas quel texte est le numéro de titre : on s'en sert
-  surtout pour lire **précisément le tableau de coordonnées**, là où un chiffre faux coûte cher.
-- **Qwen3-VL-8B** suit le schéma qu'on lui impose : il remplit **tous les champs** en JSON, y
-  compris le tableau, et sert de **deuxième lecture**. Il ne voit pas la sortie de PaddleOCR-VL :
-  si c'était le cas, leurs erreurs seraient corrélées et leur accord ne prouverait plus rien.
+- Python 3.11 et Git pour Windows.
+- llama.cpp pour Windows CUDA : sur <https://github.com/ggml-org/llama.cpp/releases>,
+  télécharger `llama-…-bin-win-cuda-12.4-x64.zip` et `cudart-llama-bin-win-cuda-12.4-x64.zip`,
+  les dézipper dans un même dossier et ajouter ce dossier au `PATH`.
+- Le projet, dans PowerShell à la racine du dépôt :
 
-### Règles de décision (model/fusion.py)
-
-| situation | valeur retenue | source | confiance |
-|---|---|---|---|
-| les deux lecteurs lisent la même chaîne | cette chaîne | `consensus` | `conf_agree` (0,97) |
-| un seul lecteur a lu une coordonnée ou une distance | sa lecture | `paddle_vl` / `qwen_vl` | 0,60 au plus → **revue humaine** |
-| un seul lecteur a lu un champ texte (propriétaire, localité…) | sa lecture | `qwen_vl` le plus souvent | sa confiance (logprobs), plafonnée à 0,90 ; 0,60 s'il n'en donne pas |
-| coordonnées divergentes, **une seule** combinaison cohérente avec la superficie et les côtés imprimés | cette combinaison | `geometry` | `conf_geometry` (0,90) |
-| divergence que la géométrie ne départage pas (aucune ou plusieurs combinaisons cohérentes, ou pas de superficie ni de côté imprimés) | lecture de PaddleOCR-VL | `paddle_vl` | `conf_conflict` (0,30) → **revue humaine** |
-| champ texte divergent (n° de titre, NICAD…) | lecture de Qwen3-VL | `qwen_vl` | `conf_conflict` → revue |
-
-Rien n'est corrigé en silence : chaque valeur garde **toutes ses lectures** (`readings`), et
-la fusion émet des alertes `READING_CONFLICT`, `READING_CONFLICT_RESOLVED`, `FIELD_CONFLICT`,
-`POINT_COUNT_MISMATCH` et `READER_FAILED`. Un document part en revue dès qu'une valeur est sous
-`review_threshold` (0,85) ou qu'une erreur est levée (`Extraction.needs_review()`).
-
-Toutes ces confiances sont des **rangs, pas encore des probabilités**. Elles se calibrent sur
-le jeu annoté avec `eval.metrics.calibration_table` et `threshold_for` (voir plus bas). Elles
-sont toutes dans `model/config.py`.
-
-## Installation
-
-Poste de développement (tests, fusion, évaluation rejouée, client HTTP) :
-
-```bash
-python -m venv .venv && source .venv/bin/activate
+```powershell
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install paddlepaddle==3.2.1 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 pip install -r requirements-dev.txt
+.\scripts\download_models.ps1
 pytest
 ```
 
-Machine GPU (Linux ou WSL2, pilote NVIDIA, Docker avec nvidia-container-toolkit) :
+`pytest` doit afficher que tous les tests passent. Ils n'ont pas besoin des modèles.
 
-```bash
-# 1. Serveurs d'inférence des deux modèles (vLLM)
-docker compose -f deploy/docker-compose.yml up -d
+**2. Lancer les deux serveurs**
 
-# 2. Client : PaddleOCR (mise en page + orientation) dans le processus Python
-pip install paddlepaddle-gpu==3.2.1 -i https://www.paddlepaddle.org.cn/packages/stable/cu126/
-pip install -r requirements-gpu.txt
-
-export CADASTRE_QWEN_URL=http://127.0.0.1:8000/v1
-export CADASTRE_PADDLE_URL=http://127.0.0.1:8080/v1
+```powershell
+.\scripts\start_servers.ps1          # ouvre deux fenêtres (PaddleOCR-VL et Qwen3-VL)
+. .\scripts\set_env.ps1
+python -m model.check_servers        # attendre deux ✓
 ```
 
-`deploy/docker-compose.yml` explique comment répartir la mémoire sur un ou deux GPU. Sans vLLM,
-`CADASTRE_QWEN_BACKEND=local` et `CADASTRE_PADDLE_BACKEND=local` chargent les modèles dans le
-processus (plus lent, pas de JSON imposé au décodage pour Qwen : il est validé après coup).
+**3. Extraire un document**
 
-Les documents ne quittent pas la machine : les deux serveurs sont locaux, aucune API externe
-n'est appelée.
-
-## Utilisation
-
-```bash
-python -m model data/raw/D01.jpg --out D01.json --readings D01_lectures.json
-python -m model data/raw/D01.jpg --only paddle      # diagnostic d'un seul lecteur
+```powershell
+python -m model data\raw\D01.jpg --out D01.json
 ```
 
-La sortie standard reçoit l'`Extraction` en JSON. Le résumé (alertes, champs à relire) est
-écrit sur stderr.
+L'`Extraction` est écrite en JSON dans `D01.json`. Le résumé s'affiche à l'écran : alertes,
+champs à relire, et si le document doit partir en revue humaine.
 
-```python
-from model.extract import extract
+**4. Mesurer sur les documents annotés**
 
-ex = extract(Path("data/raw/D01.jpg"), "D01")
-ex.points[0].x            # Extracted[float] : value, confidence, source, readings
-ex.issues                 # alertes expliquées
-ex.needs_review()         # faut-il une relecture humaine ?
-ex.provenance             # sha256 du document, modèles, prétraitement, durées, erreurs
+```powershell
+python -m eval.xlsx_to_annotations C:\chemin\classeur.xlsx data\annotations
+python -m eval.evaluate data\raw data\annotations reports
 ```
 
-## Évaluation
+Sans documents réels, on peut d'abord tester sur des documents fictifs :
 
-Les données réelles ne sont jamais versionnées (`data/raw/`, `data/annotations/`,
-`reports/readings/` sont ignorés par git).
-
-```bash
-# Annotations depuis le classeur d'analyse
-python -m eval.xlsx_to_annotations CLASSEUR.xlsx data/annotations
-
-# Évaluation avec les modèles (GPU) : PaddleOCR-VL seul, Qwen3-VL seul, puis la fusion
-python -m eval.run_baseline data/raw data/annotations reports
-
-# Rejouer fusion + validation sur les lectures enregistrées (sans GPU) : utile pour régler
-# les seuils de model/config.py
-python -m eval.run_baseline data/raw data/annotations reports --replay
-
-# Premier essai de la chaîne GPU sans données réelles : documents synthétiques fictifs
-python -m eval.synth --out data/synth --n 20 --hard
-python -m eval.run_baseline data/synth/raw data/synth/annotations reports/synth
+```powershell
+python -m eval.synthetic_documents --out data\synth --n 10
+python -m eval.evaluate data\synth\raw data\synth\annotations reports\synth
 ```
 
-Le rapport donne, pour chaque lecteur et pour la fusion, les valeurs exactes, presque justes
-(un caractère), fausses et manquantes. Il donne aussi la calibration de la fusion (taux
-d'erreur par tranche de confiance) et le seuil qui garantit au plus 1 % d'erreurs parmi les
-valeurs acceptées sans relecture. Pour référence, RapidOCR seul donnait 52 % de valeurs exactes
-sur 6 documents réels (`reports/baseline_rapidocr.json`).
+## Comment ça marche
 
-## Arborescence
+```
+document ─► preprocess.py        perspective d'une photo, éclairage inégal (si détectés)
+         ─► paddle_reader.py     PaddleOCR-VL-1.6 : orientation, blocs de la page,
+                                 tableau de coordonnées en structure (coordinate_table.py)
+         ─► qwen_reader.py       Qwen3-VL-8B : tous les champs en JSON imposé (qwen_prompt.py),
+                                 confiance par champ (token_confidence.py)
+         ─► merge_readings.py    compare les deux lectures chiffre à chiffre
+         ─► validate.py          surface de Gauss, plage UTM 28N, côtés, polygone
+         ─► Extraction           valeurs + confiance + toutes les lectures + alertes
+```
+
+- **PaddleOCR-VL** lit la page entière et rend les tableaux en lignes et colonnes. On s'en sert
+  surtout pour lire **le tableau de coordonnées**, là où un chiffre faux coûte cher.
+- **Qwen3-VL** suit le schéma JSON qu'on lui impose. Il remplit **tous les champs** et sert de
+  **deuxième lecture**. Il ne voit pas ce qu'a lu PaddleOCR-VL : leurs erreurs restent
+  indépendantes, donc leur accord est une vraie preuve.
+
+### Comment une valeur est retenue (merge_readings.py)
+
+| situation | valeur retenue | confiance |
+|---|---|---|
+| les deux modèles lisent la même chaîne | cette chaîne (`consensus`) | 0,97 |
+| coordonnées différentes, mais **une seule** combinaison cohérente avec la superficie et les côtés imprimés | cette combinaison (`geometry`) | 0,90 |
+| différence que la géométrie ne départage pas | lecture de PaddleOCR-VL | 0,30 → **revue humaine** |
+| coordonnée lue par un seul modèle | sa lecture | 0,60 au plus → **revue humaine** |
+| champ texte lu par un seul modèle (propriétaire…) | sa lecture | sa confiance, 0,90 au plus |
+
+Un document part en revue dès qu'une valeur est sous 0,85 ou qu'une erreur est détectée.
+Rien n'est corrigé en silence : chaque valeur garde toutes ses lectures (`readings`). Ces
+confiances sont des valeurs de départ, à calibrer sur les documents annotés (le rapport
+d'`eval.evaluate` donne le taux d'erreur par tranche de confiance). Elles se règlent toutes
+dans `model/config.py`.
+
+## Deux modes pour une carte de 12 Go
+
+| mode | Qwen3-VL-8B | VRAM | quand l'utiliser |
+|---|---|---|---|
+| simple : les deux serveurs en même temps | Q4_K_M | ~10 Go | usage courant, un document à la fois |
+| précis : deux passes, un serveur à la fois | Q8_0 | ~10,5 Go | évaluation, traitement par lots |
+
+Le Q4 est plus compressé : Qwen peut hésiter sur un chiffre, et la fusion envoie alors
+davantage de documents en revue. Mode précis :
+
+```powershell
+.\scripts\download_models.ps1 -QwenQuant Q8_0
+. .\scripts\set_env.ps1
+
+# Fenêtre 1 : .\scripts\start_paddle_server.ps1        Fenêtre 2 :
+python -m eval.evaluate data\raw data\annotations reports --only paddle
+
+# Fenêtre 1 : Ctrl+C, puis .\scripts\start_qwen_server.ps1 -Quant Q8_0        Fenêtre 2 :
+python -m eval.evaluate data\raw data\annotations reports --only qwen
+```
+
+La seconde passe complète les lectures enregistrées (`reports/readings/`), reprend
+l'orientation trouvée par PaddleOCR-VL et écrit le rapport. `--replay` rejoue la fusion sur
+ces lectures sans relancer les modèles : pratique pour régler les seuils.
+
+## Fichiers
 
 ```
 model/
-  config.py          seuils, confiances, points d'accès des modèles (surcharge par l'environnement)
-  schema.py          contrat de sortie : Extraction, Extracted (+ readings), Issue, Provenance
-  annotation.py      format de la vérité terrain
-  imaging.py         chargement image/PDF, perspective, éclairage
-  numbers.py         normalisation des coordonnées, superficies, n° de titre, NICAD
-  tables.py          tableau HTML → points et côtés
-  readers/           paddle_vl.py, qwen_vl.py, prompts.py (schéma imposé), json_spans.py (logprobs)
-  fusion.py          consensus, arbitrage géométrique, revue
-  validate.py        cohérence géométrique
-  extract.py         orchestration ; __main__.py : ligne de commande
-eval/                métriques, évaluation, conversion du classeur, documents synthétiques
-deploy/              serveurs vLLM (docker compose)
+  config.py            seuils, confiances, adresses des serveurs
+  schema.py            format de sortie : Extraction, Extracted (+ readings), Issue, Provenance
+  annotation.py        format de la vérité terrain
+  preprocess.py        chargement image/PDF, perspective, éclairage
+  normalize.py         mise en forme comparable : coordonnées, superficies, n° de titre, NICAD
+  coordinate_table.py  tableau HTML (PaddleOCR-VL) → points et côtés
+  reading.py           ce que rend un lecteur, avant la fusion
+  paddle_reader.py     lecteur PaddleOCR-VL-1.6
+  qwen_reader.py       lecteur Qwen3-VL-8B ; qwen_prompt.py : consigne et schéma imposé
+  token_confidence.py  confiance par champ à partir des probabilités des tokens
+  merge_readings.py    fusion des deux lectures, arbitrage géométrique
+  validate.py          contrôles géométriques
+  extract.py           enchaîne le tout ; __main__.py : ligne de commande
+  check_servers.py     vérifie que les deux serveurs répondent
+eval/
+  evaluate.py          mesure chaque lecteur et la fusion sur un jeu annoté
+  metrics.py           exact / presque / faux / manquant, calibration des confiances
+  xlsx_to_annotations.py, synthetic_documents.py
+scripts/               téléchargement des modèles et lancement des serveurs (PowerShell)
 ```
+
+Les données réelles et les lectures ne sont jamais versionnées (`data/raw/`, `data/annotations/`, `reports/readings/`
+et `models/` sont ignorés par git). Les documents ne quittent pas la machine : les deux
+serveurs tournent en local.
 
 ## Limites connues
 
-- Pas encore mesuré sur les vrais titres avec les deux modèles : c'est la prochaine étape
-  (`eval.run_baseline` sur le jeu annoté). Les confiances restent à calibrer.
-- Un seul tableau de coordonnées par document. Plans multi-parcelles non gérés.
-- La position exacte d'une cellule n'est pas fournie par PaddleOCR-VL : la `bbox` d'un point
-  est celle du tableau entier.
-- Un désaccord d'un centimètre sur une décimale reste souvent indécidable par la géométrie
-  (la superficie et les côtés ne bougent presque pas). Il part en revue, par prudence.
-- Si les deux lecteurs commettent la même erreur, le consensus ne la détecte pas. Seule la
-  validation géométrique (superficie, côtés) peut encore la signaler.
+- Pas encore mesuré sur les vrais titres avec ces deux modèles : c'est la prochaine étape.
+  Pour référence, RapidOCR seul donnait 52 % de valeurs exactes sur 6 documents réels
+  (`reports/baseline_rapidocr.json`).
+- Un seul tableau de coordonnées par document.
+- Un écart d'un centimètre sur une décimale est souvent indécidable par la géométrie : il part
+  en revue, par prudence.
+- Si les deux modèles commettent la même erreur, seule la validation géométrique peut encore la
+  signaler.
+
+powershell -ExecutionPolicy Bypass -File .\scripts\start_qwen_server.ps1 -Quant Q8_0
+.\scripts\start_paddle_server.ps1  
+
+Get-ChildItem data\raw\* | ForEach-Object {
+  $b = $_.BaseName
+  python -m model $_.FullName --out "reports\readings\$b.json" --readings "reports\readings\$($b)_readings.json"
+}
+python -m eval.evaluate data\raw data\annotations reports

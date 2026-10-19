@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from model.imaging import (
+from model.preprocess import (
     find_document_quad,
     flatten_illumination,
     illumination_unevenness,

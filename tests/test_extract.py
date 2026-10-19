@@ -7,7 +7,7 @@ import pytest
 from model.__main__ import main as cli
 from model.extract import run
 from model.schema import Extraction, Source
-from tests.helpers import COORDS, FakeReader, reading
+from tests.fake_readers import COORDS, FakeReader, reading
 
 
 @pytest.fixture

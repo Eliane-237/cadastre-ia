@@ -17,9 +17,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from model.config import SETTINGS, Settings
-from model.fusion import fuse
-from model.imaging import file_sha256, load_pages, preprocess
-from model.readers.base import DocumentReading, Reader, merge_pages
+from model.merge_readings import fuse
+from model.preprocess import apply_orientation, file_sha256, load_pages, preprocess
+from model.table_locator import best_region, crop_region
+from model.reading import DocumentReading, Reader, merge_pages
 from model.schema import Extraction, Issue, Severity
 from model.validate import validate
 
@@ -31,8 +32,8 @@ class ExtractionRun:
 
 
 def default_readers(cfg: Settings = SETTINGS) -> tuple[Reader, Reader]:
-    from model.readers.paddle_vl import PaddleVLReader
-    from model.readers.qwen_vl import QwenVLReader
+    from model.paddle_reader import PaddleVLReader
+    from model.qwen_reader import QwenVLReader
 
     return PaddleVLReader(cfg.paddle), QwenVLReader(cfg.qwen)
 
@@ -46,7 +47,10 @@ def run(
     cfg: Settings = SETTINGS,
     use_paddle: bool = True,
     use_qwen: bool = True,
+    orientation_deg: int | None = None,
 ) -> ExtractionRun:
+    """`orientation_deg` : orientation trouvée par PaddleOCR-VL lors d'une passe précédente
+    (lecture en deux passes sur un petit GPU) ; appliquée à l'image avant Qwen3-VL."""
     image_path = Path(image_path)
     document_id = document_id or image_path.stem
     if (use_paddle and paddle is None) or (use_qwen and qwen is None):
@@ -65,6 +69,9 @@ def run(
     for index, raw in enumerate(pages):
         image, steps = preprocess(raw)
         pre_log.append({"page": index, **steps})
+        if not use_paddle and orientation_deg:
+            image = apply_orientation(image, orientation_deg)
+            pre_log[-1]["orientation_deg"] = orientation_deg
         if use_paddle and "paddle" not in errors:
             t = time.perf_counter()
             try:
@@ -83,6 +90,37 @@ def run(
             except Exception as exc:  # noqa: BLE001
                 errors["qwen"] = f"{type(exc).__name__}: {exc}"
             timings["qwen_vl"] = timings.get("qwen_vl", 0.0) + time.perf_counter() - t
+
+        # Relecture ciblee du tableau de coordonnees. La page entiere vient d'etre lue et
+        # garde tous ses champs ; on relit en plus la seule region du tableau, ou les
+        # chiffres occupent toute la resolution du modele au lieu de quelques pour cent de
+        # la feuille. `merge_pages` retiendra ensuite le tableau le plus complet des deux.
+        if cfg.table_rescan:
+            region = best_region(paddle_pages[-1].raw_output if paddle_pages else None, image)
+            pre_log[-1]["table_region"] = (
+                {"bbox": [round(v, 1) for v in region.bbox], "source": region.source}
+                if region is not None
+                else None
+            )
+            if region is not None:
+                fragment = crop_region(image, region.bbox, cfg.table_zoom)
+                if fragment is not None:
+                    for actif, lecteur, liste, cle in (
+                        (use_paddle, paddle, paddle_pages, "paddle"),
+                        (use_qwen, qwen, qwen_pages, "qwen"),
+                    ):
+                        if not actif or cle in errors or lecteur is None:
+                            continue
+                        t = time.perf_counter()
+                        try:
+                            # Une relecture ciblee qui echoue ne doit rien coûter : la
+                            # lecture de page reste acquise.
+                            liste.append(lecteur.read(fragment))
+                        except Exception as exc:  # noqa: BLE001
+                            pre_log[-1][f"table_rescan_{cle}"] = f"{type(exc).__name__}: {exc}"
+                        timings[f"{cle}_table"] = (
+                            timings.get(f"{cle}_table", 0.0) + time.perf_counter() - t
+                        )
 
     pr = merge_pages(paddle_pages) if paddle_pages and "paddle" not in errors else None
     qr = merge_pages(qwen_pages) if qwen_pages and "qwen" not in errors else None

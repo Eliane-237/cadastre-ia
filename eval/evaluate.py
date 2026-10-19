@@ -1,11 +1,18 @@
 """Évalue le modèle sur tous les titres annotés : chaque lecteur seul, puis la fusion.
 
 Usage :
-    python -m eval.run_baseline data/raw data/annotations [reports]         # modèles (GPU)
-    python -m eval.run_baseline data/raw data/annotations reports --replay  # fusion seule
+    python -m eval.evaluate data/raw data/annotations [reports]         # modèles (GPU)
+    python -m eval.evaluate data/raw data/annotations reports --replay  # fusion seule
 
 Les lectures brutes des deux modèles sont enregistrées dans reports/readings/ : `--replay`
 les relit pour rejouer la fusion et la validation (réglages, seuils) sans GPU.
+
+Petit GPU : lire en deux passes, un seul modèle chargé à la fois :
+    python -m eval.evaluate data/raw data/annotations reports --only paddle
+    (arrêter le serveur PaddleOCR-VL, démarrer celui de Qwen3-VL)
+    python -m eval.evaluate data/raw data/annotations reports --only qwen
+La seconde passe complète les lectures enregistrées et reprend l'orientation trouvée par
+PaddleOCR-VL ; le rapport final est celui de la seconde passe.
 """
 
 from __future__ import annotations
@@ -26,8 +33,8 @@ from eval.metrics import (
 from model.annotation import load_all
 from model.config import Settings, from_env
 from model.extract import run
-from model.fusion import fuse
-from model.readers.base import DocumentReading, reading_from_dict, reading_to_dict
+from model.merge_readings import fuse
+from model.reading import DocumentReading, reading_from_dict, reading_to_dict
 from model.schema import Extraction, Source
 from model.validate import validate
 
@@ -49,7 +56,23 @@ def _line(name: str, rep: DocReport) -> str:
     )
 
 
-def main(raw: Path, ann_dir: Path, out: Path, replay: bool) -> None:
+def load_cache(path: Path) -> dict[str, DocumentReading]:
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {k: reading_from_dict(v) for k, v in data.items()}
+
+
+def save_cache(path: Path, readings: dict[str, DocumentReading]) -> None:
+    path.write_text(
+        json.dumps(
+            {k: reading_to_dict(v) for k, v in readings.items()}, ensure_ascii=False, indent=2
+        ),
+        encoding="utf-8",
+    )
+
+
+def main(raw: Path, ann_dir: Path, out: Path, replay: bool, only: str | None = None) -> None:
     cfg = from_env()
     cache = out / "readings"
     cache.mkdir(parents=True, exist_ok=True)
@@ -58,25 +81,27 @@ def main(raw: Path, ann_dir: Path, out: Path, replay: bool) -> None:
     for ann in load_all(ann_dir):
         cached = cache / f"{ann.document_id}.json"
         if replay:
-            if not cached.is_file():
+            readings = load_cache(cached)
+            if not readings:
                 print(f"{ann.document_id}: pas de lectures enregistrées, ignoré")
                 continue
-            data = json.loads(cached.read_text(encoding="utf-8"))
-            readings = {k: reading_from_dict(v) for k, v in data.items()}
         else:
             img = raw / ann.image
             if not img.is_file():
                 print(f"{ann.document_id}: image introuvable ({img.name}), ignoré")
                 continue
-            readings = run(img, ann.document_id, cfg=cfg).readings
-            cached.write_text(
-                json.dumps(
-                    {k: reading_to_dict(v) for k, v in readings.items()},
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
+            previous = load_cache(cached) if only else {}
+            prev_paddle = previous.get(Source.PADDLE_VL.value)
+            fresh = run(
+                img,
+                ann.document_id,
+                cfg=cfg,
+                use_paddle=only != "qwen",
+                use_qwen=only != "paddle",
+                orientation_deg=prev_paddle.orientation_deg if prev_paddle else None,
+            ).readings
+            readings = {**previous, **fresh}
+            save_cache(cached, readings)
         p = readings.get(Source.PADDLE_VL.value)
         q = readings.get(Source.QWEN_VL.value)
         both = fused(ann.document_id, p, q, cfg)
@@ -142,9 +167,14 @@ if __name__ == "__main__":
     ap.add_argument("annotations", type=Path)
     ap.add_argument("out", type=Path, nargs="?", default=Path("reports"))
     ap.add_argument(
+        "--only",
+        choices=["paddle", "qwen"],
+        help="Une seule passe (petit GPU) ; complète les lectures déjà enregistrées.",
+    )
+    ap.add_argument(
         "--replay",
         action="store_true",
         help="Rejouer la fusion depuis les lectures enregistrées (sans GPU).",
     )
     a = ap.parse_args()
-    main(a.raw, a.annotations, a.out, a.replay)
+    main(a.raw, a.annotations, a.out, a.replay, a.only)

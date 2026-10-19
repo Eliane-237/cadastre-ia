@@ -13,3 +13,6 @@ data/annotations/
 reports/readings/
 reports/evaluation.json
 data/synth/
+
+# Poids des modèles (GGUF, plusieurs Go)
+models/

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, field_validator
 from model.schema import Area
 
 _COORD = re.compile(r"^\d{5,8}\.\d{1,3}$")
-ANNOTATION_VERSION = "1.0"
+ANNOTATION_VERSION = "2.0"
 
 
 class AnnotatedPoint(BaseModel):
@@ -31,13 +31,33 @@ class AnnotatedPoint(BaseModel):
 
 
 class Annotation(BaseModel):
+    """Vérité terrain d'un document. Un champ = une case imprimée ; null si la case
+    est vide ou illisible. On ne déduit rien, on ne concatène rien."""
+
     annotation_version: str = ANNOTATION_VERSION
     document_id: str
     image: str                                   # nom du fichier image dans data/raw/
+
     title_number: str | None = None
+    mother_title: str | None = None
+    lot: str | None = None
+    subdivision: str | None = None
+    requisition: str | None = None
+    land_registry: str | None = None
     nicad: str | None = None
-    locality: str | None = None
+
+    region: str | None = None
+    department: str | None = None
+    arrondissement: str | None = None
+    commune: str | None = None
+
+    owner: str | None = None
     printed_area: Area | None = None
+    coordinate_system: str | None = None
+    scale: str | None = None
+    certified_on: str | None = None
+    disclaimer: str | None = None
+
     points: list[AnnotatedPoint] = Field(default_factory=list)
     decimals: int | None = Field(default=None, ge=0, le=3)
     quality: str | None = None                   # lisibilité de l'image, texte libre

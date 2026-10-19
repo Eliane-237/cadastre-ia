@@ -1,6 +1,6 @@
 """Consigne et schéma imposés à Qwen3-VL.
 
-Le schéma est appliqué au décodage (sortie structurée de vLLM) : le modèle ne peut produire
+Le schéma est appliqué au décodage (grammaire de llama-server) : le modèle ne peut produire
 que ce JSON. Les coordonnées sont des chaînes pour recopier exactement les chiffres imprimés.
 """
 
@@ -36,10 +36,28 @@ class QwenArea(BaseModel):
 class QwenOutput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     document_type: Literal["titre_foncier", "plan_bornage", "autre"] | None
+
+    # Identification du titre — une case du formulaire par champ.
     title_number: str | None
+    mother_title: str | None
+    lot: str | None
+    subdivision: str | None
+    requisition: str | None
+    land_registry: str | None
     nicad: str | None
+
+    # Localisation administrative — un niveau de la hiérarchie par champ.
+    region: str | None
+    department: str | None
+    arrondissement: str | None
+    commune: str | None
+
     owner: str | None
-    locality: str | None
+    coordinate_system: str | None
+    scale: str | None
+    certified_on: str | None
+    disclaimer: str | None
+
     area: QwenArea | None
     points: list[QwenPoint]
     sides: list[QwenSide]
@@ -56,7 +74,12 @@ Règles :
 - title_number : numéro du titre foncier ou du titre mère tel qu'écrit (ex. « TF 1738/DK », \
 « TM 1738/DK (ex 3016/DG) »).
 - nicad : numéro NICAD (identifiant cadastral), chiffres seulement s'il est présent.
-- owner : propriétaire ou requérant, tel qu'écrit. locality : commune, quartier ou lieu-dit.
+- Chaque champ correspond à une case imprimée du formulaire. Recopie ce qui est écrit dans
+  cette case précise, et rien d'autre : title_number est la case « TITRE N° », mother_title
+  la case « Titre Mère n° », lot la case « Lot n° », region / department / arrondissement /
+  commune les quatre lignes d'adresse administrative, owner la case « Requérant ».
+- Si une case existe mais est vide, mets null. Ne va jamais chercher la valeur dans une
+  autre case ni ailleurs sur le document.
 - area : la superficie imprimée (souvent « 00 ha 06 a 49 ca »). Remplis text avec le texte exact, \
 et ha, a, ca avec les nombres lus.
 - points : toutes les lignes du tableau de coordonnées, dans l'ordre du tableau. Les coordonnées \
@@ -69,5 +92,17 @@ des deux bornes.
 borne à la fin si elle n'est pas répétée dans le tableau."""
 
 
+def _inline_refs(node, defs: dict):
+    if isinstance(node, dict):
+        if "$ref" in node:
+            return _inline_refs(defs[node["$ref"].split("/")[-1]], defs)
+        return {k: _inline_refs(v, defs) for k, v in node.items() if k != "$defs"}
+    if isinstance(node, list):
+        return [_inline_refs(v, defs) for v in node]
+    return node
+
+
 def json_schema() -> dict:
-    return QwenOutput.model_json_schema()
+    """Schéma JSON sans références ($ref) : accepté par la grammaire de llama.cpp."""
+    schema = QwenOutput.model_json_schema()
+    return _inline_refs(schema, schema.get("$defs", {}))

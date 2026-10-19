@@ -1,9 +1,8 @@
 """Lecteur Qwen3-VL-8B-Instruct : remplit le JSON de l'`Extraction`, tableau compris.
 
-Deux modes :
-- « server » (recommandé sur GPU) : vLLM expose une API compatible OpenAI ; le JSON est imposé
-  au décodage (`response_format` json_schema) et les logprobs donnent la confiance par champ ;
-- « local » : transformers dans le processus ; le JSON est validé après coup.
+Le modèle tourne derrière llama-server (API compatible OpenAI). Le JSON est imposé au décodage
+(`response_format` json_schema, converti en grammaire par llama.cpp) et les logprobs donnent
+la confiance par champ.
 
 C'est une deuxième lecture indépendante : Qwen3-VL ne voit pas ce qu'a lu PaddleOCR-VL, sinon
 leurs erreurs seraient corrélées et leur accord ne prouverait plus rien.
@@ -18,11 +17,11 @@ from typing import Any
 import numpy as np
 
 from model.config import QwenSettings
-from model.imaging import encode_png, limit_size
-from model.readers.base import DocumentReading, FieldReading, PointReading, SideReading
-from model.readers.json_spans import Path, value_confidences
-from model.readers.prompts import SYSTEM_PROMPT, USER_PROMPT, QwenOutput, json_schema
-from model.schema import Source
+from model.preprocess import encode_png, limit_size
+from model.qwen_prompt import SYSTEM_PROMPT, USER_PROMPT, QwenOutput, json_schema
+from model.reading import DocumentReading, FieldReading, PointReading, SideReading
+from model.schema import Area, Source, TEXT_FIELDS
+from model.token_confidence import Path, value_confidences
 
 
 def extract_json(text: str) -> tuple[dict, int]:
@@ -44,16 +43,24 @@ def reading_from_output(
 
     fields = {
         name: FieldReading(raw=getattr(out, name), confidence=c(name))
-        for name in ("title_number", "nicad", "owner", "locality")
+        for name in TEXT_FIELDS
     }
     if out.area is not None:
         a = out.area
-        raw_area = a.text
-        if any(v is not None for v in (a.ha, a.a, a.ca)):
-            raw_area = f"{a.ha or 0} ha {a.a or 0} a {a.ca or 0} ca"
         parts = [c("area", k) for k in ("ha", "a", "ca", "text")]
         known = [p for p in parts if p is not None]
-        fields["area"] = FieldReading(raw=raw_area, confidence=min(known) if known else None)
+        area_conf = min(known) if known else None
+        # `raw` porte le texte tel qu'imprimé : c'est lui qui fait foi en aval. Les trois
+        # nombres sont conservés en secours, pour les cas où le texte est illisible — le
+        # lecteur les range parfois mal (« 80a 05ca » rendu ha=80, soit 100 fois trop).
+        if any(v is not None for v in (a.ha, a.a, a.ca)):
+            fields["area"] = FieldReading(
+                raw=a.text or f"{a.ha or 0} ha {a.a or 0} a {a.ca or 0} ca",
+                confidence=area_conf,
+                area=Area(ha=a.ha or 0, a=a.a or 0, ca=a.ca or 0),
+            )
+        elif a.text:
+            fields["area"] = FieldReading(raw=a.text, confidence=area_conf)
     points = [
         PointReading(
             label=p.label,
@@ -105,9 +112,6 @@ class QwenVLReader:
         self.settings = settings or QwenSettings()
         self.model_id = self.settings.model
         self._http = http_client
-        self._local = None
-
-    # ------------------------------------------------------------------ serveur (vLLM)
 
     def _client(self):
         if self._http is None:
@@ -134,7 +138,7 @@ class QwenVLReader:
             "logprobs": True,
         }
 
-    def _read_server(self, image: np.ndarray) -> DocumentReading:
+    def read(self, image: np.ndarray) -> DocumentReading:
         s = self.settings
         resp = self._client().post(
             f"{s.server_url.rstrip('/')}/chat/completions",
@@ -151,71 +155,3 @@ class QwenVLReader:
         ]
         conf = value_confidences(text, tokens, start)
         return reading_from_output(QwenOutput.model_validate(data), conf, self.model_id, data)
-
-    # ------------------------------------------------------------------ local (transformers)
-
-    def _load_local(self):  # pragma: no cover - nécessite GPU et poids
-        if self._local is None:
-            import torch
-            from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
-
-            model = Qwen3VLForConditionalGeneration.from_pretrained(
-                self.settings.model, dtype=torch.bfloat16, device_map="auto"
-            ).eval()
-            self._local = (model, AutoProcessor.from_pretrained(self.settings.model))
-        return self._local
-
-    def _read_local(self, image: np.ndarray) -> DocumentReading:  # pragma: no cover - GPU
-        import torch
-        from PIL import Image
-
-        model, processor = self._load_local()
-        rgb = limit_size(image, self.settings.max_image_side)[:, :, ::-1]
-        schema_hint = json.dumps(json_schema(), ensure_ascii=False)
-        messages = [
-            {"role": "system", "content": [{"type": "text", "text": SYSTEM_PROMPT}]},
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": Image.fromarray(np.ascontiguousarray(rgb))},
-                    {
-                        "type": "text",
-                        "text": f"{USER_PROMPT}\n\nSchéma JSON à respecter :\n{schema_hint}",
-                    },
-                ],
-            },
-        ]
-        inputs = processor.apply_chat_template(
-            messages,
-            tokenize=True,
-            add_generation_prompt=True,
-            return_dict=True,
-            return_tensors="pt",
-        ).to(model.device)
-        with torch.inference_mode():
-            out = model.generate(
-                **inputs,
-                max_new_tokens=self.settings.max_new_tokens,
-                do_sample=False,
-                output_scores=True,
-                return_dict_in_generate=True,
-            )
-        gen = out.sequences[0, inputs["input_ids"].shape[1] :]
-        logprobs = model.compute_transition_scores(
-            out.sequences, out.scores, normalize_logits=True
-        )[0]
-        tok = processor.tokenizer
-        tokens, prev = [], ""
-        for k in range(len(gen)):
-            cur = tok.decode(gen[: k + 1], skip_special_tokens=True)
-            tokens.append((cur[len(prev) :], float(logprobs[k])))
-            prev = cur
-        text = prev
-        data, _ = extract_json(text)
-        conf = value_confidences(text, tokens, text.find("{"))
-        return reading_from_output(QwenOutput.model_validate(data), conf, self.model_id, data)
-
-    def read(self, image: np.ndarray) -> DocumentReading:
-        if self.settings.backend == "local":
-            return self._read_local(image)
-        return self._read_server(image)

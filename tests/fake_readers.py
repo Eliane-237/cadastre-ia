@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from model.readers.base import DocumentReading, FieldReading, PointReading, SideReading
+from model.reading import DocumentReading, FieldReading, PointReading, SideReading
 from model.schema import Source
 from model.validate import shoelace_area
 
@@ -37,7 +37,7 @@ def reading(
     }
     if source is Source.QWEN_VL:
         f.update(
-            owner=FieldReading("Awa NDIAYE", 0.95), locality=FieldReading("Dakar, Médina", 0.9)
+            owner=FieldReading("Awa NDIAYE", 0.95), commune=FieldReading("Dakar, Médina", 0.9)
         )
     if fields is not None:
         f = fields

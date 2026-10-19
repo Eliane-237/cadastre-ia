@@ -63,6 +63,8 @@ def test_coordonnee_et_longueur():
         # Plus aucun exposant : la convention ha-a-ca sur deux chiffres suffit (tf.jpg).
         ("02 55", 255),
         ("00 06 49", 649),
+        # Un point separe parfois le nombre de son unite (Grand Dakar, lot 31).
+        ("Superficie : 8.a 07ca", 807),
     ],
 )
 def test_superficie(text, m2):

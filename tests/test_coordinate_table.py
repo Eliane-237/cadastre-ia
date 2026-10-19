@@ -1,4 +1,4 @@
-from model.tables import (
+from model.coordinate_table import (
     best_coordinate_table,
     html_to_grid,
     parse_coordinate_table,

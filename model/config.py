@@ -65,6 +65,10 @@ class Settings:
     # Deux bornes peuvent partager une abscisse sur une parcelle rectangulaire ; trois
     # supposerait trois bornes alignées, ce qui trahit plutôt une case recopiée.
     max_identical_coordinates: int = 3
+    # Relecture ciblee du tableau de coordonnees : la page entiere reste lue pour tous
+    # les champs, et le tableau est en plus relu seul pour ne pas perdre les X/Y.
+    table_rescan: bool = True
+    table_zoom: int = 3
     # Plages plausibles en UTM 28N pour le Sénégal (m). Larges à dessein : elles écartent les
     # lectures absurdes, pas les parcelles inhabituelles. À resserrer avec les données du cadastre.
     easting_range: tuple[float, float] = (100_000.0, 900_000.0)

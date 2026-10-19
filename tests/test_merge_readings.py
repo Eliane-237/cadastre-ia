@@ -1,11 +1,11 @@
 import pytest
 
 from model.config import Settings
-from model.fusion import fuse
-from model.readers.base import FieldReading
+from model.merge_readings import fuse
+from model.reading import FieldReading
 from model.schema import Source
 from model.validate import validate
-from tests.helpers import AREA_M2, COORDS, SIDES, reading
+from tests.fake_readers import AREA_M2, COORDS, SIDES, reading
 
 CFG = Settings()
 

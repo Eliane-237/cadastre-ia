@@ -6,11 +6,11 @@ import numpy as np
 import pytest
 
 from model.config import QwenSettings
-from model.readers.json_spans import value_confidences, value_spans
-from model.readers.paddle_vl import reading_from_result
-from model.readers.prompts import QwenOutput, json_schema
-from model.readers.qwen_vl import QwenVLReader, extract_json, reading_from_output
-from model.schema import Source
+from model.paddle_reader import reading_from_result
+from model.qwen_prompt import QwenOutput, json_schema
+from model.qwen_reader import QwenVLReader, extract_json, reading_from_output
+from model.schema import Area, Source
+from model.token_confidence import value_confidences, value_spans
 
 PADDLE_RESULT = {
     "width": 1654,
@@ -111,8 +111,20 @@ QWEN_JSON = {
     "document_type": "plan_bornage",
     "title_number": "TF 1738/DK",
     "nicad": None,
+    "mother_title": None,
+    "lot": None,
+    "subdivision": None,
+    "requisition": None,
+    "land_registry": None,
+    "region": None,
+    "department": None,
+    "arrondissement": None,
+    "coordinate_system": None,
+    "scale": None,
+    "certified_on": None,
+    "disclaimer": None,
     "owner": "Awa NDIAYE",
-    "locality": "Dakar, Médina",
+    "commune": "Dakar, Médina",
     "area": {"text": "00 ha 06 a 49 ca", "ha": 0, "a": 6, "ca": 49},
     "points": [{"label": "B1", "x": "381210.57", "y": "1564042.96"}],
     "sides": [{"from_label": "B1", "to_label": "B2", "length": "17.00"}],
@@ -122,7 +134,7 @@ QWEN_JSON = {
 def test_lecture_qwen():
     r = reading_from_output(QwenOutput.model_validate(QWEN_JSON), {("points", 0, "x"): 0.8}, "qwen")
     assert r.points[0].x_confidence == 0.8 and r.points[0].y_confidence is None
-    assert r.field("area").raw == "0 ha 6 a 49 ca"
+    assert r.field("area").raw == "00 ha 06 a 49 ca"
     assert r.sides[0].from_label == "B1"
 
 
@@ -131,7 +143,7 @@ def test_json_entoure_de_texte():
     assert data == {"a": 1} and start == 8
 
 
-def test_client_vllm_envoie_le_schema_et_lit_les_logprobs():
+def test_client_llama_server_envoie_le_schema_et_lit_les_logprobs():
     content = json.dumps(QWEN_JSON, ensure_ascii=False)
     # Tokens qui recomposent exactement la réponse ; un token hésitant dans « 381210.57 ».
     i = content.index("381210.57")
@@ -165,3 +177,4 @@ def test_client_vllm_envoie_le_schema_et_lit_les_logprobs():
     assert r.points[0].x == "381210.57"
     assert r.points[0].x_confidence == pytest.approx(0.7)
     assert r.points[0].y_confidence == pytest.approx(1.0)
+    assert r.field("area").area == Area(ha=0, a=6, ca=49)

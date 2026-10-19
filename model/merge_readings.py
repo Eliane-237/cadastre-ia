@@ -15,12 +15,15 @@ Rien n'est jamais « corrigé » en silence : toutes les lectures restent dans `
 from __future__ import annotations
 
 import itertools
+import re
 from dataclasses import dataclass, field
+from difflib import SequenceMatcher
+from itertools import combinations
 
 from shapely.geometry import Polygon
 
 from model.config import SETTINGS, Settings
-from model.numbers import (
+from model.normalize import (
     canonical_coordinate,
     canonical_label,
     canonical_length,
@@ -29,7 +32,7 @@ from model.numbers import (
     canonical_title,
     parse_area,
 )
-from model.readers.base import DocumentReading, FieldReading, PointReading, SideReading
+from model.reading import DocumentReading, FieldReading, PointReading, SideReading
 from model.schema import (
     Area,
     BoundaryPoint,
@@ -41,6 +44,7 @@ from model.schema import (
     Source,
 )
 from model.validate import shoelace_area, side_length
+from model.schema import TEXT_FIELDS
 
 # Lecteur dont la valeur est gardée par défaut en cas de désaccord non tranché.
 TABLE_READER = Source.PADDLE_VL
@@ -85,6 +89,22 @@ def _single_conf(c: _Candidate, cap: float, cfg: Settings) -> float:
     return min(own, cap)
 
 
+_NON_DIGIT = re.compile(r"\D")
+
+
+def _concordant(a: str, b: str, cfg: Settings) -> bool:
+    """Deux lectures disent-elles la même chose, à l'orthographe près ?
+
+    Les chiffres doivent être identiques et dans le même ordre. C'est cette
+    condition qui empêche d'accepter « 234767.39 » pour « 234787.39 », dont la
+    similarité textuelle atteint pourtant 0.89 — au même niveau que des variantes
+    d'orthographe légitimes. Seules les lettres et la ponctuation peuvent différer.
+    """
+    if _NON_DIGIT.sub("", a) != _NON_DIGIT.sub("", b):
+        return False
+    return SequenceMatcher(None, a, b).ratio() >= cfg.near_agree_ratio
+
+
 def _decide(
     cands: list[_Candidate], cfg: Settings, prefer: Source, single_cap: float | None = None
 ) -> tuple[_Candidate | None, Source, float, bool]:
@@ -100,6 +120,10 @@ def _decide(
         return usable[0], usable[0].source, _single_conf(usable[0], cap, cfg), False
     if len({c.normalized for c in usable}) == 1:
         return usable[0], Source.CONSENSUS, cfg.conf_agree, False
+    # Lectures qui ne diffèrent que par l'orthographe : accord, à confiance réduite.
+    if all(_concordant(a.normalized, b.normalized, cfg) for a, b in combinations(usable, 2)):
+        best = max(usable, key=lambda c: c.confidence or 0.0)
+        return best, Source.CONSENSUS, cfg.conf_near_agree, False
     chosen = next((c for c in usable if c.source is prefer), usable[0])
     return chosen, chosen.source, cfg.conf_conflict, True
 
@@ -205,10 +229,23 @@ def _fuse_sides(
 
 
 _FIELD_NORMALIZERS = {
+
     "title_number": canonical_title,
-    "nicad": canonical_nicad,
+    "mother_title": canonical_title,
+    "lot": canonical_title,
     "owner": canonical_text,
-    "locality": canonical_text,
+    "subdivision": canonical_text,
+    "requisition": canonical_text,
+    "land_registry": canonical_text,
+    "region": canonical_text,
+    "department": canonical_text,
+    "arrondissement": canonical_text,
+    "commune": canonical_text,
+    "coordinate_system": canonical_text,
+    "scale": canonical_text,
+    "certified_on": canonical_text,
+    "disclaimer": canonical_text,
+    "nicad": canonical_nicad,
 }
 
 
@@ -219,7 +256,10 @@ def _field_cands(readings: list[DocumentReading], name: str) -> list[_Candidate]
         if f.raw is None:
             continue
         if name == "area":
-            area = parse_area(f.raw)
+            # Le texte est la recopie littérale du document ; les nombres sont une
+            # interprétation du lecteur, qui range parfois les ares dans les hectares
+            # (« 80a 05ca » lu ha=80). Le texte fait foi, la structure sert de secours.
+            area = parse_area(f.raw) or f.area
             norm = str(int(area.m2)) if area else None
         else:
             norm = _FIELD_NORMALIZERS[name](f.raw)
@@ -242,7 +282,31 @@ def _fuse_field(
             )
         )
     if name == "area":
-        value = parse_area(chosen.raw) if chosen else None
+        value = None
+        if chosen is not None:
+            value = parse_area(chosen.raw)
+            structured = next(
+                (
+                    r.field("area").area
+                    for r in readings
+                    if r.field("area").raw == chosen.raw and r.field("area").area is not None
+                ),
+                None,
+            )
+            if value is None:
+                value = structured
+            elif structured is not None and structured.m2 != value.m2:
+                report.issues.append(
+                    Issue(
+                        code="AREA_READING_DIVERGENT",
+                        severity=Severity.WARNING,
+                        message=(
+                            f"superficie : le texte « {chosen.raw} » vaut {value.m2:.0f} m², "
+                            f"les nombres du lecteur {structured.m2:.0f} m² ; "
+                            "le texte est retenu."
+                        ),
+                    )
+                )
         return Extracted[Area](
             value=value,
             confidence=conf if value else 0.0,
@@ -370,7 +434,7 @@ def fuse(
         points.append(BoundaryPoint(label=label, row_index=i, x=coords["x"], y=coords["y"]))
 
     extraction = Extraction(document_id=document_id, points=points)
-    for name in ("title_number", "nicad", "owner", "locality"):
+    for name in TEXT_FIELDS:
         setattr(extraction, name, _fuse_field(readings, name, cfg, report))
     extraction.printed_area = _fuse_field(readings, "area", cfg, report)
     labels = [canonical_label(p.label) for p in points]

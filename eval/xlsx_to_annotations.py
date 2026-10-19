@@ -51,7 +51,7 @@ def convert(xlsx: Path, out_dir: Path, annotator: str = "claude-lecture-visuelle
         a = Annotation(
             document_id=did,
             image=str(row[1]),
-            locality=_txt(row[3]),
+            commune=_txt(row[3]),
             title_number=_txt(row[4]),
             nicad=_txt(row[5]),
             printed_area=Area(ha=int(row[6] or 0), a=int(row[7] or 0), ca=int(row[8] or 0)),

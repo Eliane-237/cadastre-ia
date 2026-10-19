@@ -15,20 +15,74 @@ from typing import Any
 import numpy as np
 
 from model.config import PaddleSettings
-from model.numbers import fix_digits, parse_area
-from model.readers.base import DocumentReading, FieldReading, PointReading
+from model.coordinate_table import best_coordinate_table, points_from_text
+from model.normalize import fix_digits, parse_area
+from model.reading import DocumentReading, FieldReading, PointReading
 from model.schema import BBox, Source
-from model.tables import best_coordinate_table, points_from_text
 
 MODEL_ID = "PaddlePaddle/PaddleOCR-VL-1.6"
 
+# Un seul groupe de capture, suffixe optionnel : « 22 665/GR », « 2/C », mais aussi
+# « 1835 » que le Kaolack écrit sans suffixe.
+_NUM = r"((?:\d[\d .]*\d|\d)(?:\s*/\s*[A-Za-z]{1,4})?)"
 _TITLE = re.compile(
-    r"(?:T\.?\s?[FM]\.?|titre\s*(?:foncier|m[èe]re))\s*(?:n\s?[°ºo]\.?|num[ée]ro|n\.?)?\s*:?\s*"
-    r"(\d[\d .]*\d|\d)\s*/\s*([A-Z]{1,4})\b",
+    r"(?:T\.?\s?F\.?|titre(?:\s+foncier)?)\s+(?!m[èe]re)"
+    r"(?:n\s?[°ºo]\.?|num[ée]ro)?\s*:?\s*" + _NUM,
     re.IGNORECASE,
 )
 _NICAD = re.compile(r"NICAD\s*(?:n\s?[°ºo]\.?)?\s*:?\s*([\d\s\-]{10,24}\d)", re.IGNORECASE)
 _AREA_KEY = re.compile(r"superficie|contenance|surface|contenant", re.IGNORECASE)
+
+# Valeur par défaut : paresseuse, bornée par l’étiquette suivante. Sans cela,
+# « Region: Dakar Department: Dakar » donnerait « Dakar Department: Dakar ».
+_VALUE = r"[^\n|]{1,60}?(?=\s+[A-ZÉÈÀ][\w’.-]*\s*:|\s*\|\s*|\s*$)"
+
+
+def _labelled(label: str, value: str = _VALUE) -> re.Pattern:
+    """Motif « étiquette : valeur ». L'étiquette tolère les fautes d'OCR courantes
+    (accents perdus, lettres confondues) via les classes de caractères."""
+    return re.compile(rf"{label}\s*[:\-]?\s*(?:n[°ºo*]\s*)?({value})", re.IGNORECASE)
+
+
+_MOTHER_TITLE = re.compile(
+    r"T\w{1,3}e?\s+M[èeé]re\s*(?:n\s?[°ºo*]\.?)?\s*:?\s*" + _NUM,
+    re.IGNORECASE,
+)
+_LOT = _labelled(r"Lot", _NUM)
+_SUBDIVISION = _labelled(r"Lotissement")
+_REQUISITION = _labelled(r"R[ée]qu[ei]s[it]{1,2}ion", _NUM)
+_LAND_REGISTRY = _labelled(r"LIVRE\s+FONCIER\s+DE")
+_REGION = _labelled(r"R[ée]gion")
+_DEPARTMENT = _labelled(r"D[ée]part[ea]?ment")
+_ARRONDISSEMENT = _labelled(r"Arron?d[is]{0,3}[se]{0,2}[mn]?[ea]?n?t?")
+_COMMUNE = _labelled(r"C[ou]mm?une")
+_OWNER = _labelled(r"Requ[ée]rant|Propri[ée]taire")
+_COORD_SYSTEM = _labelled(r"Syst[èe]me\s+de\s+Coordonn[ée]es")
+_SCALE = re.compile(r"ECHELLE\s*[=:]?\s*(1\s*[:/]\s*\d+)", re.IGNORECASE)
+_CERTIFIED_ON = re.compile(r"le\s+(\d{1,2}[\s.]+\w{3,10}[\s.]+\d{4})", re.IGNORECASE)
+_DISCLAIMER = re.compile(
+    r"(ne\s+constitue\s+pas\s+un\s+titre\s+de\s+propri[ée]t[ée])", re.IGNORECASE
+)
+
+# Un champ = un motif. L'ordre n'a pas d'importance, chaque champ est cherché une fois.
+_FIELD_PATTERNS: tuple[tuple[str, re.Pattern], ...] = (
+    ("title_number", _TITLE),
+    ("mother_title", _MOTHER_TITLE),
+    ("lot", _LOT),
+    ("subdivision", _SUBDIVISION),
+    ("requisition", _REQUISITION),
+    ("land_registry", _LAND_REGISTRY),
+    ("nicad", _NICAD),
+    ("region", _REGION),
+    ("department", _DEPARTMENT),
+    ("arrondissement", _ARRONDISSEMENT),
+    ("commune", _COMMUNE),
+    ("owner", _OWNER),
+    ("coordinate_system", _COORD_SYSTEM),
+    ("scale", _SCALE),
+    ("certified_on", _CERTIFIED_ON),
+    ("disclaimer", _DISCLAIMER),
+)
 
 
 def _bbox(b: Any) -> BBox | None:
@@ -50,18 +104,36 @@ def page_text(data: dict) -> str:
         str(b.get("block_content") or "") for b in _blocks(data) if b.get("block_label") != "table"
     )
 
+_TAGS = re.compile(r"<[^>]+>")
+
+def _plain_text(content: str) -> str:
+    """Contenu d'un bloc en texte lisible : les balises deviennent des espaces, afin que
+    « <td>Superficie</td><td>02a 55ca</td> » se lise « Superficie 02a 55ca »."""
+    import html
+
+    text = _TAGS.sub(" ", content)
+    text = html.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
 
 def _fields_from_text(data: dict) -> dict[str, FieldReading]:
     fields: dict[str, FieldReading] = {}
-    for block in _blocks(data):
-        if block.get("block_label") == "table":
-            continue
-        text = fix_digits(str(block.get("block_content") or ""))
+    blocks = _blocks(data)
+    # Le bloc identifié comme titre par la mise en page passe en premier : le dessin du
+    # plan porte « Surplus du TF 976/GR », qui ne doit pas devenir le numéro du titre.
+    ordered = [b for b in blocks if b.get("block_label") == "doc_title"]
+    ordered += [b for b in blocks if b.get("block_label") != "doc_title"]
+    for block in ordered:
+        # Un champ peut se trouver dans n'importe quelle région, y compris dans un
+        # encadré que la mise en page classe « table » (cas du cadre du plan).
+        text = fix_digits(_plain_text(str(block.get("block_content") or "")))
         bbox = _bbox(block.get("block_bbox"))
-        if "title_number" not in fields and (m := _TITLE.search(text)):
-            fields["title_number"] = FieldReading(raw=m.group(0).strip(), bbox=bbox)
-        if "nicad" not in fields and (m := _NICAD.search(text)):
-            fields["nicad"] = FieldReading(raw=m.group(1).strip(), bbox=bbox)
+        for name, pattern in _FIELD_PATTERNS:
+            if name in fields:
+                continue
+            if m := pattern.search(text):
+                value = (m.group(1) if m.lastindex else m.group(0)).strip(" .:-")
+                if value:                      # une case vide ne produit pas de champ
+                    fields[name] = FieldReading(raw=value, bbox=bbox)
         if "area" not in fields and (k := _AREA_KEY.search(text)):
             tail = text[k.end() : k.end() + 60]
             if parse_area(tail) is not None:
@@ -122,8 +194,12 @@ class PaddleVLReader:
                 "use_doc_orientation_classify": s.use_doc_orientation_classify,
                 "use_doc_unwarping": s.use_doc_unwarping,
             }
-            if s.backend == "server":
-                kwargs.update(vl_rec_backend="vllm-server", vl_rec_server_url=s.server_url)
+            kwargs.update(
+                vl_rec_backend=s.server_kind,
+                vl_rec_server_url=s.server_url,
+                layout_merge_bboxes_mode=s.layout_merge_bboxes_mode,
+                merge_layout_blocks=s.merge_layout_blocks,
+            )
             if s.device:
                 kwargs["device"] = s.device
             self._pipeline = PaddleOCRVL(**kwargs)

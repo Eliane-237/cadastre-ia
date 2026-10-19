@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from model.annotation import Annotation
-from model.schema import Extracted, Extraction
+from model.schema import TEXT_FIELDS, Extracted, Extraction
 
 
 class Outcome(str, Enum):
@@ -90,7 +90,7 @@ def compare(extraction: Extraction, truth: Annotation) -> DocReport:
     doc = truth.document_id
     out: list[FieldResult] = []
 
-    for name in ("title_number", "nicad", "locality"):
+    for name in TEXT_FIELDS:
         expected = getattr(truth, name)
         if expected is None:
             continue

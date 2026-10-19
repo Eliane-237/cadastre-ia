@@ -7,12 +7,22 @@ ce module constate, il ne conclut pas à la fraude.
 from __future__ import annotations
 
 import math
+import re
 import statistics
+from collections import Counter
 
 from shapely.geometry import Polygon
 
 from model.config import SETTINGS, Settings
-from model.schema import BoundaryPoint, Extraction, Issue, Severity
+from model.normalize import canonical_label
+from model.schema import (
+    DATUM_INCONNU,
+    DATUM_RRS04,
+    BoundaryPoint,
+    Extraction,
+    Issue,
+    Severity,
+)
 
 Coord = tuple[float, float]
 
@@ -60,6 +70,115 @@ def crs_is_utm28n(declared: str | None) -> bool | None:
     if any(k in text for k in _CRS_UTM28N):
         return True
     return None
+
+
+def datum_for(declared: str | None) -> str:
+    """Le datum derrière le système imprimé sur le document, ou « inconnu ».
+
+    « RRS » et « RSS » désignent le Réseau de Référence du Sénégal, dont le datum est
+    documenté. Tout le reste reste inconnu : il vaut mieux qu'un traitement en aval
+    bute sur un datum manquant plutôt qu'il suppose du WGS84 sans le savoir.
+    """
+    return DATUM_RRS04 if crs_is_utm28n(declared) is True else DATUM_INCONNU
+
+
+_NUMERO = re.compile(r"([A-Z]*)(\d+)")
+
+
+def _check_labels(points: list[BoundaryPoint]) -> list[Issue]:
+    """Les étiquettes des sommets doivent être uniques et former une suite sans trou.
+
+    Une étiquette répétée trahit une ligne du tableau recopiée par l'OCR. Un trou dans
+    la suite — B1, B2, B4 — trahit une ligne perdue : le polygone se referme alors sur
+    un sommet de moins, sans rien devenir invalide, et la surface calculée est fausse
+    sans que rien ne proteste.
+    """
+    issues: list[Issue] = []
+    canon = [canonical_label(p.label) for p in points]
+
+    for lab, n in Counter(c for c in canon if c).items():
+        if n > 1:
+            issues.append(
+                Issue(
+                    code="LABEL_DUPLICATE",
+                    severity=Severity.ERROR,
+                    point_labels=[lab],
+                    message=f"L'étiquette « {lab} » apparaît {n} fois : une ligne du "
+                            "tableau a été lue deux fois.",
+                )
+            )
+
+    parts = [m.groups() for c in canon if c and (m := _NUMERO.fullmatch(c))]
+    if not parts or len(parts) != len(points):   # étiquettes absentes ou non numérotées
+        return issues
+
+    prefixes = {p for p, _ in parts}
+    if len(prefixes) > 1:
+        issues.append(
+            Issue(
+                code="LABEL_PREFIX_MIXTE",
+                severity=Severity.WARNING,
+                message="Les étiquettes mélangent les préfixes "
+                        f"({', '.join(sorted(repr(p) for p in prefixes))}) : "
+                        "l'une d'elles est probablement mal lue.",
+            )
+        )
+
+    numeros = sorted({int(n) for _, n in parts})
+    manquants = [n for n in range(numeros[0], numeros[-1] + 1) if n not in set(numeros)]
+    if manquants:
+        issues.append(
+            Issue(
+                code="LABEL_SEQUENCE",
+                severity=Severity.WARNING,
+                message=f"La suite des sommets saute {', '.join(map(str, manquants))} : "
+                        "une ligne du tableau manque peut-être.",
+            )
+        )
+    return issues
+
+
+def _check_duplicates(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
+    """Deux sommets distincts ne peuvent pas occuper le même point.
+
+    Le point de fermeture légitime — première ligne répétée en fin de tableau — a déjà
+    été retiré en amont. Ce qui reste est une recopie accidentelle.
+    """
+    issues: list[Issue] = []
+    complets = [p for p in points if p.complete]
+
+    positions: dict[tuple[float, float], list[str]] = {}
+    for p in complets:
+        positions.setdefault((p.x.value, p.y.value), []).append(p.label)
+    for (x, y), labels in positions.items():
+        if len(labels) > 1:
+            issues.append(
+                Issue(
+                    code="POINT_DUPLICATE",
+                    severity=Severity.ERROR,
+                    point_labels=labels,
+                    message=f"{' et '.join(labels)} ont les mêmes coordonnées "
+                            f"({x:.2f}, {y:.2f}) : une ligne a été recopiée.",
+                )
+            )
+
+    # Une même valeur sur trois lignes ou plus d'une colonne : la case a été recopiée.
+    # Deux sommets peuvent légitimement partager une abscisse (parcelle rectangulaire) ;
+    # trois, c'est que trois bornes seraient alignées, ce qui n'arrive pour ainsi dire pas.
+    for axe, valeurs in (("X", [p.x.value for p in complets]), ("Y", [p.y.value for p in complets])):
+        for valeur, n in Counter(valeurs).items():
+            if n >= cfg.max_identical_coordinates:
+                issues.append(
+                    Issue(
+                        code="COORD_COLUMN_SUSPECT",
+                        severity=Severity.WARNING,
+                        point_labels=[p.label for p in complets
+                                      if (p.x.value if axe == "X" else p.y.value) == valeur],
+                        message=f"La valeur {valeur:.2f} apparaît {n} fois en {axe} : "
+                                "la case a probablement été recopiée d'une ligne à l'autre.",
+                    )
+                )
+    return issues
 
 
 def _out_of_range(p: BoundaryPoint, cfg: Settings) -> list[str]:
@@ -234,7 +353,21 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
             )
         )
         return issues
+    if declared and crs_is_utm28n(declared) is None:
+        issues.append(
+            Issue(
+                code="CRS_INCONNU",
+                severity=Severity.WARNING,
+                message=(
+                    f"Système de coordonnées « {declared} » non reconnu : le datum reste "
+                    "inconnu et les coordonnées ne peuvent pas être confrontées à une "
+                    "autre source. Vérifier la lecture de ce champ."
+                ),
+            )
+        )
 
+    issues += _check_labels(points)
+    issues += _check_duplicates(points, cfg)
     issues += _check_values(points, cfg)
 
     if any(i.severity is Severity.ERROR for i in issues) or any(
@@ -273,5 +406,11 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
 
 
 def validated(extraction: Extraction, cfg: Settings = SETTINGS) -> Extraction:
-    """Copie de l'extraction avec les anomalies détectées ajoutées."""
-    return extraction.model_copy(update={"issues": [*extraction.issues, *validate(extraction, cfg)]})
+    """Copie de l'extraction avec son datum renseigné et les anomalies détectées ajoutées."""
+    declared = extraction.coordinate_system.value if extraction.coordinate_system.present else None
+    return extraction.model_copy(
+        update={
+            "datum": datum_for(declared),
+            "issues": [*extraction.issues, *validate(extraction, cfg)],
+        }
+    )

@@ -20,8 +20,52 @@ from model.config import SETTINGS
 T = TypeVar("T")
 
 UTM_28N = "EPSG:32628"
+
+# Le RRS04 — Réseau de Référence du Sénégal, établi en 2004 par la DTGC avec l'IGN —
+# est une réalisation locale de l'ITRF2000 à l'époque 2004,55, sur l'ellipsoïde GRS80,
+# projetée en UTM fuseau 28 Nord. GRS80 et WGS84 partagent le même ellipsoïde, et la
+# compatibilité ITRF2000/WGS84 est « de l'ordre du mètre » : EPSG:32628 vaut donc tel
+# quel pour confronter deux documents du cadastre entre eux, mais PAS pour confronter
+# un titre à un relevé GPS ou à une image satellite sans transformation rigoureuse.
+# Un mètre, sur une parcelle de 221 m² aux côtés de 15 m, fait 7 % de la dimension.
+DATUM_RRS04 = "RRS04 (ITRF2000, époque 2004.55, ellipsoïde GRS80)"
+# Tant que le système imprimé n'a pas été lu et reconnu, le datum reste inconnu : un
+# traitement en aval doit buter dessus plutôt que de supposer du WGS84.
+DATUM_INCONNU = "inconnu"
 SCHEMA_VERSION = "2.0"
 REVIEW_THRESHOLD = SETTINGS.review_threshold  # valeur de travail, voir model/config.py
+
+# Champs texte du document, dans l'ordre du formulaire. Une case imprimée = un champ.
+# Partagé avec model/annotation.py pour que la vérité terrain ait exactement la même forme.
+TEXT_FIELDS: tuple[str, ...] = (
+    "title_number",       # « TITRE N° » — null si la case est vide
+    "mother_title",       # « Titre Mère n° »
+    "lot",                # « Lot n° »
+    "subdivision",        # « Lotissement »
+    "requisition",        # « Réquisition n° »
+    "land_registry",      # « LIVRE FONCIER DE »
+    "nicad",
+    "region",
+    "department",
+    "arrondissement",
+    "commune",
+    "owner",              # « Requérant » ou propriétaire
+    "coordinate_system",  # « Système de Coordonnées » — ex. « RSS 04 »
+    "scale",              # « ECHELLE » du plan principal
+    "certified_on",       # date de l'extrait certifié conforme, telle qu'imprimée
+    "disclaimer",         # ex. « Ce plan ne constitue pas un titre de propriété »
+)
+
+# Champs dont l'absence ou le doute justifie une relecture humaine. Les autres
+# (échelle, date, mention de portée) sont utiles sans être bloquants.
+CORE_FIELDS: tuple[str, ...] = (
+    "title_number",
+    "nicad",
+    "commune",
+    "owner",
+    "printed_area",
+)
+
 
 
 class Source(str, Enum):
@@ -128,13 +172,30 @@ class Extraction(BaseModel):
     """Résultat complet pour un document."""
     schema_version: str = SCHEMA_VERSION
     document_id: str
-    crs: str = UTM_28N
+    crs: str = UTM_28N                           # projection ; voir `datum` pour le référentiel
+    datum: str = DATUM_INCONNU                   # renseigné par `validated()` d'après le document
 
-    title_number: Extracted[str] = Field(default_factory=Extracted)   # n° du titre foncier
+        # Identification du titre — une case du formulaire par champ, jamais de concaténation.
+    title_number: Extracted[str] = Field(default_factory=Extracted)
+    mother_title: Extracted[str] = Field(default_factory=Extracted)
+    lot: Extracted[str] = Field(default_factory=Extracted)
+    subdivision: Extracted[str] = Field(default_factory=Extracted)
+    requisition: Extracted[str] = Field(default_factory=Extracted)
+    land_registry: Extracted[str] = Field(default_factory=Extracted)
     nicad: Extracted[str] = Field(default_factory=Extracted)
+
+    # Localisation administrative : un niveau de la hiérarchie officielle par champ.
+    region: Extracted[str] = Field(default_factory=Extracted)
+    department: Extracted[str] = Field(default_factory=Extracted)
+    arrondissement: Extracted[str] = Field(default_factory=Extracted)
+    commune: Extracted[str] = Field(default_factory=Extracted)
+
     owner: Extracted[str] = Field(default_factory=Extracted)
-    locality: Extracted[str] = Field(default_factory=Extracted)
     printed_area: Extracted[Area] = Field(default_factory=Extracted)
+    coordinate_system: Extracted[str] = Field(default_factory=Extracted)
+    scale: Extracted[str] = Field(default_factory=Extracted)
+    certified_on: Extracted[str] = Field(default_factory=Extracted)
+    disclaimer: Extracted[str] = Field(default_factory=Extracted)
 
     points: list[BoundaryPoint] = Field(default_factory=list)
     # Distances imprimées sur le plan : l'indice i est le côté du point i vers le point i+1
@@ -150,9 +211,12 @@ class Extraction(BaseModel):
     def low_confidence_fields(self, threshold: float = REVIEW_THRESHOLD) -> list[str]:
         """Noms des champs à faire relire : valeur absente ou confiance sous le seuil."""
         out: list[str] = []
-        for name in ("title_number", "nicad", "owner", "locality", "printed_area"):
-            if not getattr(self, name).is_reliable(threshold):
-                out.append(name)
+        for name in TEXT_FIELDS + ("printed_area",):
+            field = getattr(self, name)
+            if field.present and field.confidence < threshold:
+                out.append(name)          # lu, mais douteux → relire
+            elif not field.present and name in CORE_FIELDS:
+                out.append(name) 
         for p in self.points:
             if not p.x.is_reliable(threshold):
                 out.append(f"points[{p.label}].x")

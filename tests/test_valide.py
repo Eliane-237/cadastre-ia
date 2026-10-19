@@ -1,7 +1,22 @@
 import pytest
 
-from model.schema import Area, BoundaryPoint, Extracted, Extraction, Severity
-from model.validate import shoelace_area, side_length, unreliable_sides, validate, validated
+from model.schema import (
+    DATUM_INCONNU,
+    DATUM_RRS04,
+    Area,
+    BoundaryPoint,
+    Extracted,
+    Extraction,
+    Severity,
+)
+from model.validate import (
+    datum_for,
+    shoelace_area,
+    side_length,
+    unreliable_sides,
+    validate,
+    validated,
+)
 
 BASE_X, BASE_Y = 300_000.0, 1_600_000.0
 
@@ -157,3 +172,93 @@ def test_cotes_imprimes_ecartes(printed, printed_m2, motif):
 )
 def test_cotes_imprimes_conserves(printed, printed_m2):
     assert unreliable_sides(printed, printed_m2) is None
+
+
+# ------------------------------------------- etiquettes, doublons et datum
+
+def renomme(extraction, labels):
+    pts = [p.model_copy(update={"label": lab}) for p, lab in zip(extraction.points, labels)]
+    return extraction.model_copy(update={"points": pts})
+
+
+def test_etiquette_repetee():
+    issues = validate(renomme(square(), ["B1", "B2", "B2", "B4"]))
+    assert "LABEL_DUPLICATE" in codes(issues)
+    # Une etiquette repetee est une erreur : la geometrie n'est pas calculee derriere.
+    assert "GEOMETRY_SKIPPED" in codes(issues)
+
+
+def test_trou_dans_la_suite_des_sommets():
+    issues = validate(renomme(square(), ["B1", "B2", "B4", "B5"]))
+    assert "LABEL_SEQUENCE" in codes(issues)
+    assert "3" in next(i.message for i in issues if i.code == "LABEL_SEQUENCE")
+
+
+def test_prefixes_melanges():
+    assert "LABEL_PREFIX_MIXTE" in codes(validate(renomme(square(), ["B1", "B2", "3", "B4"])))
+
+
+def test_suite_complete_sans_anomalie():
+    assert validate(renomme(square(), ["B.1", "b-2", "B03", "B4"])) == []
+
+
+def test_sommets_aux_memes_coordonnees():
+    carre = square()
+    pts = list(carre.points)
+    pts[2] = pts[2].model_copy(update={"x": ex(BASE_X), "y": ex(BASE_Y)})
+    issues = validate(carre.model_copy(update={"points": pts}))
+    assert "POINT_DUPLICATE" in codes(issues)
+
+
+def test_colonne_de_coordonnees_recopiee():
+    carre = square()
+    pts = [p.model_copy(update={"x": ex(BASE_X)}) for p in carre.points]
+    issues = validate(carre.model_copy(update={"points": pts}))
+    assert "COORD_COLUMN_SUSPECT" in codes(issues)
+
+
+def test_parcelle_rectangulaire_ne_declenche_pas_le_doublon():
+    # Deux sommets partagent legitimement une abscisse : rien ne doit etre signale.
+    assert "COORD_COLUMN_SUSPECT" not in codes(validate(square()))
+
+
+@pytest.mark.parametrize(
+    "declare, datum",
+    [
+        ("RSS 04", DATUM_RRS04),
+        ("RRS04", DATUM_RRS04),
+        ("Système RRS 04", DATUM_RRS04),
+        ("HATT", DATUM_INCONNU),
+        ("WGS 84", DATUM_INCONNU),      # non reconnu : surtout ne rien supposer
+        (None, DATUM_INCONNU),
+    ],
+)
+def test_datum_declare(declare, datum):
+    assert datum_for(declare) == datum
+
+
+def test_validated_renseigne_le_datum():
+    carre = square()
+    assert carre.datum == DATUM_INCONNU          # rien n'est suppose par defaut
+    lu = carre.model_copy(
+        update={"coordinate_system": Extracted[str](value="RSS 04", confidence=0.9)}
+    )
+    assert validated(lu).datum == DATUM_RRS04
+    assert validated(carre).datum == DATUM_INCONNU
+
+
+def test_sans_point_aucun_plantage():
+    # Un document dont le tableau n'a pas ete lu ne doit pas faire tomber la validation.
+    vide = Extraction(document_id="D", points=[])
+    assert "TOO_FEW_POINTS" in codes(validate(vide))
+
+
+def test_systeme_non_reconnu_signale():
+    # « RGS24 » lu sur 54987580 la ou le document imprime « RRS04 » : le datum reste
+    # inconnu, mais l'operateur doit le savoir au lieu de ne rien voir.
+    carre = square().model_copy(
+        update={"coordinate_system": Extracted[str](value="RGS24", confidence=0.8)}
+    )
+    issues = validate(carre)
+    assert "CRS_INCONNU" in codes(issues)
+    assert validated(carre).datum == DATUM_INCONNU

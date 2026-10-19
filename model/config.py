@@ -62,6 +62,9 @@ class Settings:
     # Une colonne constante n'est crue que si la superficie imprimée correspond au
     # polygone régulier : c'est la seule parcelle réelle à côtés tous égaux.
     sides_regular_tolerance_pct: float = 5.0
+    # Deux bornes peuvent partager une abscisse sur une parcelle rectangulaire ; trois
+    # supposerait trois bornes alignées, ce qui trahit plutôt une case recopiée.
+    max_identical_coordinates: int = 3
     # Plages plausibles en UTM 28N pour le Sénégal (m). Larges à dessein : elles écartent les
     # lectures absurdes, pas les parcelles inhabituelles. À resserrer avec les données du cadastre.
     easting_range: tuple[float, float] = (100_000.0, 900_000.0)

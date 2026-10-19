@@ -262,3 +262,36 @@ def test_systeme_non_reconnu_signale():
     issues = validate(carre)
     assert "CRS_INCONNU" in codes(issues)
     assert validated(carre).datum == DATUM_INCONNU
+
+
+# ------------------------------------------------- regularite des colonnes
+
+def colonne(xs, ys):
+    pts = [BoundaryPoint(label=f"B{i+1}", row_index=i,
+                         x=Extracted[float](value=float(x), confidence=1.0, raw_text=x),
+                         y=Extracted[float](value=float(y), confidence=1.0, raw_text=y))
+           for i, (x, y) in enumerate(zip(xs, ys))]
+    return codes(validate(square().model_copy(update={"points": pts, "printed_area": Extracted[Area]()})))
+
+
+Y_KAOLACK = ["1564042.96", "1564034.94", "1564023.49", "1564031.51"]
+
+
+def test_coordonnee_amputee_de_son_prefixe():
+    # tf kaolack : « 38210.57 » au lieu de « 381210.57 ». Repere sans aucune geometrie,
+    # ce qui compte quand la superficie imprimee manque.
+    trouves = colonne(["38210.57", "381225.56", "381219.40", "381204.41"], Y_KAOLACK)
+    assert "COLUMN_LENGTH" in trouves
+    assert "COLUMN_PREFIX" in trouves
+
+
+def test_decimales_irregulieres():
+    # Grand Dakar : « 236867.4 » a une seule decimale la ou la colonne en a deux.
+    trouves = colonne(["236869.09", "236899.63", "236896.76", "236867.4"],
+                      ["1628753.88", "1628752.08", "1628724.89", "1628727.50"])
+    assert "COLUMN_DECIMALS" in trouves
+
+
+def test_colonne_reguliere_sans_bruit():
+    trouves = colonne(["381210.57", "381225.56", "381219.40", "381204.41"], Y_KAOLACK)
+    assert not {"COLUMN_LENGTH", "COLUMN_DECIMALS", "COLUMN_PREFIX"} & set(trouves)

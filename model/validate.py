@@ -294,6 +294,89 @@ def unreliable_sides(
     return None
 
 
+def _chaine(valeur, brut: str | None) -> str:
+    """La coordonnee telle qu'imprimee, ou a defaut telle que lue."""
+    return (brut or "").strip() or f"{valeur:.2f}"
+
+
+def _dominant(valeurs: list, part_min: float):
+    """La valeur partagee par au moins `part_min` de la colonne, ou None."""
+    if len(valeurs) < 3:
+        return None
+    valeur, combien = Counter(valeurs).most_common(1)[0]
+    return valeur if combien / len(valeurs) >= part_min else None
+
+
+def _prefixe_dominant(chaines: list[str], part_min: float) -> str | None:
+    """Le plus long prefixe de chiffres partage par au moins `part_min` de la colonne.
+
+    Les tableaux cadastraux omettent parfois le prefixe des milliers sur les lignes
+    suivantes, par convention d'ecriture. Une valeur qui ne porte pas le prefixe de
+    ses voisines est soit une lecture tronquee, soit cette convention : dans les deux
+    cas elle demande un oeil.
+    """
+    entiers = [c.split(".")[0] for c in chaines]
+    if len(entiers) < 3:
+        return None
+    for longueur in range(min(len(e) for e in entiers), 1, -1):
+        candidat = _dominant([e[:longueur] for e in entiers], part_min)
+        if candidat is not None:
+            return candidat
+    return None
+
+
+def _check_columns(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
+    """Regularite des colonnes X et Y, independamment de toute geometrie.
+
+    Une colonne de coordonnees cadastrales est regulière : meme nombre de chiffres,
+    meme nombre de decimales, meme prefixe geographique. Une valeur qui s'en ecarte
+    est suspecte. Ces controles ne corrigent rien et n'accusent rien : ils valent
+    surtout quand la superficie imprimee manque, c'est-a-dire quand la geometrie n'a
+    aucun juge. Ils restent des avertissements, car une erreur de lecture systematique
+    rendrait le motif dominant lui-meme faux.
+    """
+    issues: list[Issue] = []
+    for axe, champs in (("X", [(p, p.x) for p in points if p.x.present]),
+                        ("Y", [(p, p.y) for p in points if p.y.present])):
+        if len(champs) < 3:
+            continue
+        chaines = [_chaine(c.value, getattr(c, "raw_text", None)) for _, c in champs]
+
+        longueurs = [len(c.split(".")[0]) for c in chaines]
+        attendue = _dominant(longueurs, cfg.column_min_share)
+        if attendue is not None:
+            ecarts = [p.label for (p, _), n in zip(champs, longueurs) if n != attendue]
+            if ecarts:
+                issues.append(Issue(
+                    code="COLUMN_LENGTH", severity=Severity.WARNING, point_labels=ecarts,
+                    message=f"{axe} : {', '.join(ecarts)} n'a/n'ont pas {attendue} chiffres "
+                            "avant la virgule, contrairement au reste de la colonne.",
+                ))
+
+        decimales = [len(c.split(".")[1]) if "." in c else 0 for c in chaines]
+        attendues = _dominant(decimales, cfg.column_min_share)
+        if attendues is not None:
+            ecarts = [p.label for (p, _), n in zip(champs, decimales) if n != attendues]
+            if ecarts:
+                issues.append(Issue(
+                    code="COLUMN_DECIMALS", severity=Severity.WARNING, point_labels=ecarts,
+                    message=f"{axe} : {', '.join(ecarts)} n'a/n'ont pas {attendues} décimale(s), "
+                            "contrairement au reste de la colonne.",
+                ))
+
+        prefixe = _prefixe_dominant(chaines, cfg.column_min_share)
+        if prefixe is not None:
+            ecarts = [p.label for (p, _), c in zip(champs, chaines)
+                      if not c.split(".")[0].startswith(prefixe)]
+            if ecarts:
+                issues.append(Issue(
+                    code="COLUMN_PREFIX", severity=Severity.WARNING, point_labels=ecarts,
+                    message=f"{axe} : {', '.join(ecarts)} ne commence(nt) pas par « {prefixe} », "
+                            "contrairement au reste de la colonne.",
+                ))
+    return issues
+
+
 def _check_sides(
     points: list[BoundaryPoint], printed: list, printed_m2: float | None, cfg: Settings
 ) -> list[Issue]:
@@ -368,6 +451,7 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
 
     issues += _check_labels(points)
     issues += _check_duplicates(points, cfg)
+    issues += _check_columns(points, cfg)
     issues += _check_values(points, cfg)
 
     if any(i.severity is Severity.ERROR for i in issues) or any(

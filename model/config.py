@@ -69,6 +69,15 @@ class Settings:
     # les champs, et le tableau est en plus relu seul pour ne pas perdre les X/Y.
     table_rescan: bool = True
     table_zoom: int = 3
+    # Regularite d'une colonne de coordonnees : part minimale pour qu'une longueur,
+    # un nombre de decimales ou un prefixe soit considere comme dominant.
+    column_min_share: float = 0.75
+    # Chevauchement : part de la plus petite parcelle recouverte, en pourcentage.
+    # En deca, c'est une limite partagee entre voisins, pas un conflit : deux leves
+    # de la meme limite different de quelques centimetres.
+    overlap_min_share_pct: float = 1.0
+    # Au-dela, une parcelle est consideree comme contenue dans l'autre.
+    overlap_inclusion_pct: float = 95.0
     # Plages plausibles en UTM 28N pour le Sénégal (m). Larges à dessein : elles écartent les
     # lectures absurdes, pas les parcelles inhabituelles. À resserrer avec les données du cadastre.
     easting_range: tuple[float, float] = (100_000.0, 900_000.0)

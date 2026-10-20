@@ -16,6 +16,8 @@ reports/evaluation.json
 reports/*.geojson
 # Images de contrôle du prétraitement : ce sont les titres eux-mêmes
 reports/preprocess_check/
+# Tracés des parcelles : la forme et la position de terrains réels
+reports/parcelles/
 data/synth/
 
 # Poids des modèles (GGUF, plusieurs Go)

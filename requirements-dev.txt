@@ -1,3 +1,4 @@
 -r requirements.txt
 pytest>=8
 ruff>=0.5
+matplotlib>=3.8   # tools/parcelle.py --png : tracer la parcelle pour la comparer au plan

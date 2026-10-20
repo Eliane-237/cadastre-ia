@@ -176,3 +176,51 @@ def test_relecture_de_superficie_en_panne_ne_casse_rien(scan):
     ex = run(scan, paddle=Casse(_sans_aire(Source.PADDLE_VL), None), qwen=q).extraction
     assert len(ex.points) == len(COORDS)                     # la lecture de page reste acquise
     assert "AREA_UNAVAILABLE" in [i.code for i in ex.issues]
+
+
+# ------------------------------------------------------- le datum, porte d'entree de l'aval
+
+
+def _avec_systeme(source, systeme):
+    from model.reading import FieldReading
+
+    r = reading(source)
+    if systeme is not None:
+        r.fields["coordinate_system"] = FieldReading(systeme, 0.9)
+    return r
+
+
+def test_le_datum_est_renseigne_depuis_le_systeme_imprime(scan):
+    """Sans datum, `Parcel.comparable` est faux et aucun chevauchement n'est cherchable.
+
+    `validated()` posait le datum, mais la chaine appelait `validate()` : toute extraction
+    reelle sortait en « inconnu » et aucune parcelle n'etait confrontable.
+    """
+    from model.schema import DATUM_RRS04
+
+    ex = run(scan,
+             paddle=FakeReader(_avec_systeme(Source.PADDLE_VL, "RSS 04")),
+             qwen=FakeReader(_avec_systeme(Source.QWEN_VL, "RSS 04"))).extraction
+    assert ex.datum == DATUM_RRS04
+
+    from model.geometry import parcel
+    assert parcel(ex).comparable
+
+
+def test_un_systeme_non_reconnu_laisse_le_datum_inconnu(scan):
+    from model.schema import DATUM_INCONNU
+
+    ex = run(scan,
+             paddle=FakeReader(_avec_systeme(Source.PADDLE_VL, "RGS24")),
+             qwen=FakeReader(_avec_systeme(Source.QWEN_VL, "RGS24"))).extraction
+    assert ex.datum == DATUM_INCONNU          # mieux vaut buter que supposer du WGS84
+    assert "CRS_INCONNU" in [i.code for i in ex.issues]
+
+
+def test_sans_systeme_imprime_le_datum_reste_inconnu(scan):
+    from model.schema import DATUM_INCONNU
+
+    ex = run(scan,
+             paddle=FakeReader(_avec_systeme(Source.PADDLE_VL, None)),
+             qwen=FakeReader(_avec_systeme(Source.QWEN_VL, None))).extraction
+    assert ex.datum == DATUM_INCONNU

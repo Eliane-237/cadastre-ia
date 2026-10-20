@@ -23,7 +23,7 @@ from model.preprocess import apply_orientation, file_sha256, load_pages, preproc
 from model.table_locator import best_region, crop_region
 from model.reading import DocumentReading, Reader, merge_pages
 from model.schema import Extraction, Issue, Severity
-from model.validate import validate
+from model.validate import datum_for, validate
 
 
 @dataclass
@@ -199,6 +199,11 @@ def run(
     else:
         issues.extend(validate(extraction, cfg))
     extraction.issues = issues
+    # Le référentiel derrière le système imprimé. Sans lui la parcelle reste « incomparable »
+    # et aucun chevauchement ne peut être cherché : c'est la porte d'entrée de tout l'aval.
+    extraction.datum = datum_for(
+        extraction.coordinate_system.value if extraction.coordinate_system.present else None
+    )
 
     timings["total"] = time.perf_counter() - t0
     prov = extraction.provenance

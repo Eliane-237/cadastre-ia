@@ -51,6 +51,10 @@ def charge(chemin: Path) -> Extraction:
     donnees = json.loads(chemin.read_text(encoding="utf-8"))
     if "annotation_version" in donnees:
         return _depuis_annotation(donnees)
+    if "document_id" not in donnees:
+        # Un fichier de lectures brutes (`--readings`) depose parmi les extractions :
+        # il a les lecteurs en cles de premier niveau, pas de document.
+        raise ValueError("ni annotation ni extraction (lectures brutes ?)")
     return Extraction.model_validate(donnees)
 
 
@@ -113,11 +117,73 @@ def geojson(parcelles: list[Parcel], chemin: Path) -> None:
     print(f"  {note}")
 
 
+def etiquettes(extraction: Extraction) -> dict[tuple[float, float], str]:
+    """Position d'un sommet -> son libelle imprime (B1, B2...).
+
+    `parcel()` reordonne les sommets pour que deux parcelles soient comparables : le
+    premier point du polygone n'est pas le premier du tableau. Pour comparer le trace au
+    plan du document, il faut les libelles du papier, pas l'ordre canonique.
+    """
+    return {(p.x.value, p.y.value): p.label
+            for p in extraction.points if p.complete}
+
+
+def dessine(parcelles: list[Parcel], dossier: Path,
+            libelles: dict[str, dict[tuple[float, float], str]] | None = None) -> None:
+    """Un PNG par parcelle : la forme, ses sommets numerotes, son echelle.
+
+    C'est le controle que l'oeil fait mieux que n'importe quel seuil : si la forme tracee
+    ne ressemble pas au plan imprime sur le document, les coordonnees sont fausses, meme
+    quand l'aire tombe juste. Le nord est en haut, l'est a droite, et les proportions sont
+    respectees — un polygone etire par l'affichage ne se compare a rien.
+    """
+    try:
+        import matplotlib
+    except ImportError:
+        print("  matplotlib n'est pas installé dans cet environnement.\n"
+              "  Installe-le : python -m pip install matplotlib\n"
+              "  Le reste de l'outil fonctionne sans lui (--geojson, affichage texte).")
+        return
+    matplotlib.use("Agg")                     # aucun affichage : on ecrit des fichiers
+    import matplotlib.pyplot as plt
+
+    dossier.mkdir(parents=True, exist_ok=True)
+    for p in parcelles:
+        sommets = list(p.polygon.exterior.coords)
+        xs, ys = zip(*sommets)
+        fig, ax = plt.subplots(figsize=(7, 7))
+        ax.plot(xs, ys, "-", linewidth=1.6, color="#1a4d7a")
+        ax.fill(xs, ys, alpha=0.10, color="#1a4d7a")
+        ax.plot(xs[:-1], ys[:-1], "o", markersize=4, color="#1a4d7a")
+        noms = (libelles or {}).get(p.document_id, {})
+        for i, (x, y) in enumerate(sommets[:-1], 1):
+            ax.annotate(noms.get((x, y), str(i)), (x, y),
+                        textcoords="offset points", xytext=(5, 5), fontsize=8)
+
+        ecart = ""
+        if p.printed_m2:
+            ecart = f" — imprimee {p.printed_m2:.0f} m² (ecart {abs(p.area_m2 - p.printed_m2) / p.printed_m2 * 100:.2f} %)"
+        ax.set_title(f"{p.title_number or p.document_id}\n{p.area_m2:.0f} m²{ecart}", fontsize=10)
+        ax.set_xlabel("Est (m)")
+        ax.set_ylabel("Nord (m)")
+        ax.set_aspect("equal")                # sans cela, la forme est deformee
+        ax.grid(True, linewidth=0.3, alpha=0.5)
+        ax.ticklabel_format(style="plain", useOffset=False)
+        fig.tight_layout()
+        chemin = dossier / f"{p.document_id.replace('/', '_')}.png"
+        fig.savefig(chemin, dpi=150)
+        plt.close(fig)
+        print(f"  {chemin}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("source", type=Path, help="Un JSON d'annotation ou d'extraction, ou un dossier.")
     ap.add_argument("--all", action="store_true", help="Tous les JSON du dossier.")
     ap.add_argument("--geojson", type=Path, help="Écrit les polygones pour QGIS.")
+    ap.add_argument("--png", type=Path, nargs="?", const=Path("reports/parcelles"),
+                    metavar="DOSSIER",
+                    help="Dessine chaque parcelle (défaut : reports/parcelles).")
     args = ap.parse_args()
 
     fichiers = (sorted(f for f in args.source.glob("*.json")
@@ -128,9 +194,12 @@ def main() -> int:
         return 1
 
     parcelles: list[Parcel] = []
+    libelles: dict[str, dict[tuple[float, float], str]] = {}
     for f in fichiers:
         try:
-            p = parcel(charge(f))
+            extraction = charge(f)
+            p = parcel(extraction)
+            libelles[p.document_id] = etiquettes(extraction)
         except GeometryRefusee as exc:
             print(f"\n=== {f.stem} ===\n  REFUS : {exc}")
             continue
@@ -140,6 +209,9 @@ def main() -> int:
         montre(p)
         parcelles.append(p)
 
+    if args.png and parcelles:
+        print(f"\n{len(parcelles)} tracé(s) :")
+        dessine(parcelles, args.png, libelles)
     if args.geojson and parcelles:
         geojson(parcelles, args.geojson)
     return 0 if parcelles else 1

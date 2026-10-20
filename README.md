@@ -168,3 +168,6 @@ Get-ChildItem data\raw\* | ForEach-Object {
   python -m model $_.FullName --out "reports\readings\$b.json" --readings "reports\readings\$($b)_readings.json"
 }
 python -m eval.evaluate data\raw data\annotations reports
+
+python tools/trace.py reports/readings --resume
+python tools/trace.py reports/readings/tf.json

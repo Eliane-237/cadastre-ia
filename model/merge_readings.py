@@ -105,6 +105,34 @@ def _concordant(a: str, b: str, cfg: Settings) -> bool:
     return SequenceMatcher(None, a, b).ratio() >= cfg.near_agree_ratio
 
 
+def _ponctuation_parasite(s: str) -> int:
+    """Points et virgules qui coupent un mot au lieu de separer des nombres.
+
+    Quand deux lecteurs portent les memes chiffres, ils ont lu la meme valeur : ne reste
+    qu'a choisir la forme. « 1.4.DEC.2020 » en compte deux, « 14 DEC 2020 » aucune, et le
+    point decimal de « 234773.60 » n'en est pas une — il separe deux chiffres, c'est son
+    role. Departager la-dessus plutot qu'a la confiance declaree evite de laisser le
+    lecteur le plus sur de lui imposer sa forme abimee.
+    """
+    n = 0
+    for i, c in enumerate(s):
+        if c not in ".,":
+            continue
+        avant = s[i - 1] if i else ""
+        apres = s[i + 1] if i + 1 < len(s) else ""
+        if avant.isalpha() or apres.isalpha():
+            n += 1
+    return n
+
+
+def _mieux_forme(cands: list[_Candidate]) -> _Candidate:
+    """La lecture la moins abimee ; a egalite, la plus confiante."""
+    return min(
+        cands,
+        key=lambda c: (_ponctuation_parasite(c.raw or ""), -(c.confidence or 0.0)),
+    )
+
+
 def _decide(
     cands: list[_Candidate], cfg: Settings, prefer: Source, single_cap: float | None = None
 ) -> tuple[_Candidate | None, Source, float, bool]:
@@ -122,8 +150,7 @@ def _decide(
         return usable[0], Source.CONSENSUS, cfg.conf_agree, False
     # Lectures qui ne diffèrent que par l'orthographe : accord, à confiance réduite.
     if all(_concordant(a.normalized, b.normalized, cfg) for a, b in combinations(usable, 2)):
-        best = max(usable, key=lambda c: c.confidence or 0.0)
-        return best, Source.CONSENSUS, cfg.conf_near_agree, False
+        return _mieux_forme(usable), Source.CONSENSUS, cfg.conf_near_agree, False
     chosen = next((c for c in usable if c.source is prefer), usable[0])
     return chosen, chosen.source, cfg.conf_conflict, True
 

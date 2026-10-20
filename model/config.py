@@ -69,6 +69,11 @@ class Settings:
     # les champs, et le tableau est en plus relu seul pour ne pas perdre les X/Y.
     table_rescan: bool = True
     table_zoom: int = 3
+    # La superficie juge toute la validation geometrique : quand la page entiere ne la
+    # donne pas, on relit de pres la region ou elle se trouve. Grossissement plus fort
+    # que pour le tableau : la region est petite et tient en quelques caracteres.
+    area_rescan: bool = True
+    area_zoom: int = 4
     # Regularite d'une colonne de coordonnees : part minimale pour qu'une longueur,
     # un nombre de decimales ou un prefixe soit considere comme dominant.
     column_min_share: float = 0.75
@@ -78,6 +83,11 @@ class Settings:
     overlap_min_share_pct: float = 1.0
     # Au-dela, une parcelle est consideree comme contenue dans l'autre.
     overlap_inclusion_pct: float = 95.0
+    # Distance maximale entre une parcelle et la localite qu'elle declare, en km.
+    # Une region est vaste, une commune ne l'est pas : le seuil suit le niveau.
+    locality_commune_km: float = 25.0
+    locality_department_km: float = 60.0
+    locality_region_km: float = 150.0
     # Plages plausibles en UTM 28N pour le Sénégal (m). Larges à dessein : elles écartent les
     # lectures absurdes, pas les parcelles inhabituelles. À resserrer avec les données du cadastre.
     easting_range: tuple[float, float] = (100_000.0, 900_000.0)

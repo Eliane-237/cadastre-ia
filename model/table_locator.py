@@ -23,6 +23,14 @@ _TAGS = re.compile(r"<[^>]+>")
 MIN_PAIRS = 3                  # moins de trois couples : ce n'est pas un tableau de bornage
 MAX_AREA_RATIO = 0.60          # au-delà, c'est le cadre de la page, pas une région
 
+# Un tableau de bornage loge deux colonnes de six et sept chiffres sur au moins trois
+# lignes : il ne peut pas être minuscule. Mesuré sur les tableaux réellement localisés du
+# corpus — 30,1 %, 23,2 % et 21,1 % de la largeur de la page — contre 3,1 % pour une
+# fausse grille trouvée par le repli sur 54987580, qui a fait relire 31 pixels de large au
+# lieu du tableau. Sous ce seuil les chiffres seraient sous-pixelliques.
+MIN_WIDTH_RATIO = 0.12
+MIN_HEIGHT_RATIO = 0.03
+
 
 @dataclass(frozen=True)
 class Region:
@@ -68,6 +76,15 @@ def _trop_grande(bbox: tuple[float, float, float, float], taille: tuple[int, int
     return aire > MAX_AREA_RATIO * largeur * hauteur
 
 
+def _trop_petite(bbox: tuple[float, float, float, float], taille: tuple[int, int] | None) -> bool:
+    """Trop petite pour contenir un tableau de coordonnées lisible."""
+    if taille is None:
+        return False
+    largeur, hauteur = taille
+    return ((bbox[2] - bbox[0]) < MIN_WIDTH_RATIO * largeur
+            or (bbox[3] - bbox[1]) < MIN_HEIGHT_RATIO * hauteur)
+
+
 def locate(raw: dict, taille: tuple[int, int] | None = None) -> list[Region]:
     """Régions candidates pour le tableau de coordonnées, la plus sûre d'abord.
 
@@ -79,7 +96,7 @@ def locate(raw: dict, taille: tuple[int, int] | None = None) -> list[Region]:
         if not isinstance(bloc, dict):
             continue
         bbox = _bbox(bloc)
-        if bbox is None or _trop_grande(bbox, taille):
+        if bbox is None or _trop_grande(bbox, taille) or _trop_petite(bbox, taille):
             continue
         etiquette = (bloc.get("block_label") or "").lower()
         couples = _pairs(_texte(bloc.get("block_content")))
@@ -106,7 +123,7 @@ def locate_by_grid(image, taille: tuple[int, int] | None = None) -> list[Region]
     regions = []
     for g in find_grids(image):
         bbox = (float(g.x0), float(g.y0), float(g.x1), float(g.y1))
-        if _trop_grande(bbox, taille):
+        if _trop_grande(bbox, taille) or _trop_petite(bbox, taille):
             continue
         regions.append(Region(bbox, "grille", 0,
                               f"grille de {g.rows} lignes sur {g.cols} colonnes"))

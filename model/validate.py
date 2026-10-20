@@ -14,6 +14,7 @@ from collections import Counter
 from shapely.geometry import Polygon
 
 from model.config import SETTINGS, Settings
+from model.localites import distance_m
 from model.normalize import canonical_label
 from model.schema import (
     DATUM_INCONNU,
@@ -56,6 +57,7 @@ def _drop_closing_point(points: list[BoundaryPoint]) -> list[BoundaryPoint]:
 # Systemes de reference rencontres sur les titres senegalais. RRS / RSS sont le reseau
 # national, exprime en UTM 28N ; HATT est une autre projection, incompatible avec nos
 # plages et avec un calcul de surface en metres.
+MIN_POINTS_LOCALITE = 3       # un centroide a besoin d'au moins trois sommets
 _CRS_UTM28N = ("RRS", "RSS")
 _CRS_AUTRES = ("HATT",)
 
@@ -83,6 +85,44 @@ def datum_for(declared: str | None) -> str:
 
 
 _NUMERO = re.compile(r"([A-Z]*)(\d+)")
+
+
+def _normalise_titre(v: str | None) -> str:
+    """Un numéro de titre réduit à ses caractères significatifs, pour comparer deux cases.
+
+    On retire ce qui n'identifie pas le titre : le préfixe « TF » ou « TM », qui dit le type
+    de document, et le rappel de l'ancien numéro entre parenthèses — « 1738/DK (ex 3016/DG) »
+    désigne le même titre que « 1738/DK ». La valeur stockée, elle, n'est pas touchée.
+    """
+    t = (v or "").upper().split("(")[0]
+    t = "".join(c for c in t if c.isalnum())
+    for prefixe in ("TF", "TM"):
+        if t.startswith(prefixe) and len(t) > len(prefixe):
+            return t[len(prefixe):]
+    return t
+
+
+def _check_titre_mere(extraction: Extraction) -> list[Issue]:
+    """Le numéro du titre et celui du titre mère ne peuvent pas être le même.
+
+    Une parcelle n'est jamais détachée d'elle-même. Quand les deux cases portent la même
+    valeur, c'est qu'une case vide a été comblée avec le contenu de l'autre — le cas vu sur
+    « titre-foncier », où « TITRE N° » n'est pas renseigné et où le numéro du titre mère a
+    été recopié dedans. On ne choisit pas laquelle des deux est la bonne : on le signale et
+    on envoie le document en revue, parce que la réponse est sur le papier, pas ici.
+    """
+    titre, mere = extraction.title_number, extraction.mother_title
+    if not (titre.present and mere.present):
+        return []
+    a, b = _normalise_titre(titre.value), _normalise_titre(mere.value)
+    if not a or a != b:
+        return []
+    return [Issue(
+        code="TITRE_EGAL_MERE",
+        severity=Severity.WARNING,
+        message=(f"Titre et titre mère portent le même numéro ({titre.value!r}) : "
+                 "une case vide a probablement été comblée avec l'autre. À relire."),
+    )]
 
 
 def _check_labels(points: list[BoundaryPoint]) -> list[Issue]:
@@ -377,6 +417,50 @@ def _check_columns(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
     return issues
 
 
+def _check_localite(
+    points: list[BoundaryPoint], extraction: Extraction, cfg: Settings
+) -> list[Issue]:
+    """La parcelle se trouve-t-elle près de la localité qu'elle déclare.
+
+    La superficie et les côtés vérifient la forme ; rien ne vérifiait la position. Une
+    erreur sur les premiers chiffres d'une coordonnée déplacerait la parcelle de
+    plusieurs kilomètres sans rien changer à son aire. On part du niveau le plus précis
+    déclaré — commune, puis département, puis région — et on s'arrête au premier que la
+    base des localités connaît. Un nom inconnu n'est pas une anomalie : le contrôle se
+    tait plutôt que d'accuser.
+    """
+    complets = [p for p in points if p.complete]
+    if len(complets) < MIN_POINTS_LOCALITE:
+        return []
+    cx = sum(p.x.value for p in complets) / len(complets)
+    cy = sum(p.y.value for p in complets) / len(complets)
+
+    niveaux = (
+        ("commune", extraction.commune, cfg.locality_commune_km),
+        ("département", extraction.department, cfg.locality_department_km),
+        ("région", extraction.region, cfg.locality_region_km),
+    )
+    for niveau, champ, seuil_km in niveaux:
+        nom = champ.value if champ.present else None
+        distance = distance_m(cx, cy, nom)
+        if distance is None:
+            continue
+        if distance / 1000 > seuil_km:
+            return [
+                Issue(
+                    code="LOCALITE_INCOHERENTE",
+                    severity=Severity.WARNING,
+                    message=(
+                        f"La parcelle est à {distance / 1000:.0f} km de « {nom} », "
+                        f"{niveau} déclarée (au-delà de {seuil_km:.0f} km) : "
+                        "les coordonnées ou la localité sont fausses."
+                    ),
+                )
+            ]
+        return []
+    return []
+
+
 def _check_sides(
     points: list[BoundaryPoint], printed: list, printed_m2: float | None, cfg: Settings
 ) -> list[Issue]:
@@ -449,9 +533,11 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
             )
         )
 
+    issues += _check_titre_mere(extraction)
     issues += _check_labels(points)
     issues += _check_duplicates(points, cfg)
     issues += _check_columns(points, cfg)
+    issues += _check_localite(points, extraction, cfg)
     issues += _check_values(points, cfg)
 
     if any(i.severity is Severity.ERROR for i in issues) or any(

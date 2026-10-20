@@ -79,11 +79,23 @@ Règles :
   la case « Titre Mère n° », lot la case « Lot n° », region / department / arrondissement /
   commune les quatre lignes d'adresse administrative, owner la case « Requérant ».
 - Si une case existe mais est vide, mets null. Ne va jamais chercher la valeur dans une
-  autre case ni ailleurs sur le document.
+  autre case ni ailleurs sur le document. nicad est la seule case marquee « NICAD » : un
+  autre nombre imprime sur la feuille n'est pas un NICAD.
+- title_number et mother_title sont DEUX cases distinctes, et un titre n'est jamais son
+  propre titre mere : ne mets jamais la meme valeur dans les deux. Si un seul numero est
+  imprime, il va dans la case ou il est ecrit, et l'autre champ vaut null.
+- Recopie la VALEUR, pas l'etiquette : si la ligne porte « Region de Thies », region vaut
+  « Thies ». Si elle porte « Commune de Thies Nord », commune vaut « Thies Nord ».
+- Si une valeur est rayee, biffee au marqueur, recouverte par un cachet ou masquee d'une
+  quelconque maniere, mets null. Une valeur cachee n'est pas une valeur devinable.
+- coordinate_system : uniquement ce qui est ecrit a cote de la mention « Systeme de
+  coordonnees » ou « Systeme », recopie tel quel. Si le document ne porte aucune mention de
+  ce genre, mets null. Ne le deduis jamais de l'allure des coordonnees, et ne reprends
+  jamais un nom de systeme lu ailleurs que sur ce document.
 - area : la superficie imprimée (souvent « 00 ha 06 a 49 ca »). Remplis text avec le texte exact, \
 et ha, a, ca avec les nombres lus.
-- points : toutes les lignes du tableau de coordonnées, dans l'ordre du tableau. Les coordonnées \
-sont en UTM zone 28N : X (Est) a 6 chiffres avant la virgule, Y (Nord) en a 7 et commence par 1. \
+- points : toutes les lignes du tableau de coordonnées, dans l'ordre du tableau. X (Est) a \
+6 chiffres avant la virgule, Y (Nord) en a 7 et commence par 1. \
 Recopie chaque chiffre exactement, avec toutes les décimales imprimées, y compris les zéros \
 finaux. Utilise le point comme séparateur décimal, sans espace.
 - sides : les distances entre bornes si elles sont imprimées (tableau ou plan), avec les libellés \

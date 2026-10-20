@@ -178,3 +178,38 @@ def test_client_llama_server_envoie_le_schema_et_lit_les_logprobs():
     assert r.points[0].x_confidence == pytest.approx(0.7)
     assert r.points[0].y_confidence == pytest.approx(1.0)
     assert r.field("area").area == Area(ha=0, a=6, ca=49)
+
+
+# ------------------------------------------- le prompt ne doit rien souffler au modele
+
+
+def test_le_prompt_ne_nomme_aucun_systeme_de_coordonnees():
+    """Qwen a rendu « UTM zone 28N » sur deux documents qui n'impriment aucun systeme.
+
+    C'etait la phrase du prompt — « Les coordonnees sont en UTM zone 28N » — qu'il nous
+    renvoyait. Un nom de systeme ecrit dans la consigne est un nom que le modele peut
+    recopier comme s'il l'avait lu. Aucun ne doit y figurer, pas meme en exemple.
+    """
+    from model.qwen_prompt import SYSTEM_PROMPT, USER_PROMPT
+
+    texte = (SYSTEM_PROMPT + USER_PROMPT).upper()
+    interdits = ["UTM", "WGS", "EPSG", "RRS", "RSS", "ITRF", "GRS80", "ZONE 28", "LAMBERT"]
+    trouves = [m for m in interdits if m in texte]
+    assert not trouves, f"valeurs soufflees au modele : {trouves}"
+
+
+def test_le_prompt_exige_null_sur_une_valeur_masquee():
+    from model.qwen_prompt import USER_PROMPT
+
+    assert "cachet" in USER_PROMPT and "null" in USER_PROMPT
+
+
+def test_le_schema_impose_reste_complet():
+    """Retirer des exemples du prompt ne doit pas retirer de champs."""
+    from model.qwen_prompt import json_schema
+    from model.schema import TEXT_FIELDS
+
+    props = json_schema()["properties"]
+    manquants = [f for f in TEXT_FIELDS if f not in props]
+    assert not manquants, f"champs perdus dans le schema impose : {manquants}"
+    assert "$defs" not in json_schema()          # grammaire llama.cpp : pas de $ref

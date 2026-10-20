@@ -78,6 +78,16 @@ def _order_quad(pts: np.ndarray) -> np.ndarray:
 MAX_PAGE_RATIO = 0.90
 MIN_PAGE_RATIO = 0.15
 
+# Un quadrilatère de la bonne taille peut malgré tout être le cadre imprimé du plan plutôt
+# que le bord de la feuille. Recadrer dessus ampute l'en-tête administratif — et avec lui
+# le titre, le livre foncier, la région, la commune, le NICAD. Mesuré sur le corpus : dans
+# les trois cas où ce recadrage s'est déclenché à tort, la médiane de luminosité hors du
+# quadrilatère valait celle du dedans (179/176, 244/244, 234/237) et 89 à 93 % du dehors
+# était aussi clair que la feuille — normal, c'est la même feuille. Une feuille vraiment
+# photographiée dans un décor a un fond franchement plus sombre.
+OUTSIDE_BRIGHT_RATIO = 0.60    # part du dehors aussi claire que la feuille
+OUTSIDE_MEDIAN_RATIO = 0.90    # médiane du dehors rapportée à celle du dedans
+
 
 def _quad_from_contour(contour: np.ndarray) -> np.ndarray | None:
     """Simplifie un contour en quadrilatère convexe. L'epsilon est balayé : un seul seuil
@@ -227,6 +237,29 @@ def rotate(image: np.ndarray, angle_deg: float) -> np.ndarray:
 # --------------------------------------------------------------------------- chaîne
 
 
+def _quad_borde_la_feuille(image: np.ndarray, quad: np.ndarray) -> bool:
+    """Le quadrilatère est-il le bord de la feuille, et non un cadre imprimé dessus ?
+
+    On ne cherche pas à reconnaître une feuille : on refuse d'amputer. Si ce qui est hors
+    du quadrilatère ressemble encore à du papier, c'est que le quadrilatère est tracé
+    sur la page — et recadrer y jetterait du texte imprimé.
+    """
+    gris = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    masque = np.zeros(gris.shape, np.uint8)
+    cv2.fillConvexPoly(masque, quad.astype(np.int32), 255)
+    dedans, dehors = gris[masque > 0], gris[masque == 0]
+    if dedans.size == 0 or dehors.size == 0:
+        return False
+    clair = float(np.median(dedans))
+    if clair <= 0:
+        return False
+    part_claire = float((dehors > 0.85 * clair).mean())
+    return not (
+        part_claire > OUTSIDE_BRIGHT_RATIO
+        or float(np.median(dehors)) >= OUTSIDE_MEDIAN_RATIO * clair
+    )
+
+
 def preprocess(
     image: np.ndarray,
     *,
@@ -239,6 +272,10 @@ def preprocess(
     if perspective:
         quad = find_document_quad(image)
         steps["perspective"] = quad.round(1).tolist() if quad is not None else None
+        if quad is not None and not _quad_borde_la_feuille(image, quad):
+            # Le quadrilatère est à l'intérieur de la page : le suivre couperait du texte.
+            steps["perspective_refusee"] = "quadrilatère intérieur à la feuille"
+            quad = None
         if quad is not None:
             image = warp_quad(image, quad)
     if illumination:

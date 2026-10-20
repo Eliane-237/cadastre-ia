@@ -33,6 +33,10 @@ DATUM_RRS04 = "RRS04 (ITRF2000, époque 2004.55, ellipsoïde GRS80)"
 # traitement en aval doit buter dessus plutôt que de supposer du WGS84.
 DATUM_INCONNU = "inconnu"
 SCHEMA_VERSION = "2.0"
+
+# Anomalies qui n'empêchent pas de construire la géométrie mais qui doivent passer sous
+# un œil humain. Une alerte seule ne déclenche pas la revue : celles-ci, si.
+REVIEW_CODES: frozenset[str] = frozenset({"TITRE_EGAL_MERE"})
 REVIEW_THRESHOLD = SETTINGS.review_threshold  # valeur de travail, voir model/config.py
 
 # Champs texte du document, dans l'ordre du formulaire. Une case imprimée = un champ.
@@ -225,4 +229,8 @@ class Extraction(BaseModel):
         return out
 
     def needs_review(self, threshold: float = REVIEW_THRESHOLD) -> bool:
-        return self.has_error or bool(self.low_confidence_fields(threshold))
+        return (
+            self.has_error
+            or any(i.code in REVIEW_CODES for i in self.issues)
+            or bool(self.low_confidence_fields(threshold))
+        )

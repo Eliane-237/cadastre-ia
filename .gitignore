@@ -12,6 +12,10 @@ data/annotations/
 # Lectures brutes et rapports sur données réelles : contiennent noms et coordonnées
 reports/readings/
 reports/evaluation.json
+# Géométries exportées : les coordonnées réelles des parcelles
+reports/*.geojson
+# Images de contrôle du prétraitement : ce sont les titres eux-mêmes
+reports/preprocess_check/
 data/synth/
 
 # Poids des modèles (GGUF, plusieurs Go)

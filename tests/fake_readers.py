@@ -8,7 +8,9 @@ from model.reading import DocumentReading, FieldReading, PointReading, SideReadi
 from model.schema import Source
 from model.validate import shoelace_area
 
-# Pentagone réaliste, coordonnées imprimées avec 2 décimales (Dakar, UTM 28N).
+# Pentagone réaliste, coordonnées imprimées avec 2 décimales (Kaolack, UTM 28N).
+# La commune et le numéro de titre s'accordent à ces coordonnées : le contrôle de
+# localité vérifie que la parcelle tombe bien près de la commune qu'elle déclare.
 COORDS = [
     ("381210.57", "1564042.96"),
     ("381225.56", "1564034.94"),
@@ -31,13 +33,13 @@ def reading(
     source: Source, coords=COORDS, *, sides=True, fields=None, labels=LABELS
 ) -> DocumentReading:
     f = {
-        "title_number": FieldReading("TF 1738/DK"),
+        "title_number": FieldReading("TF 1738/KL"),
         "nicad": FieldReading("0123456789012"),
         "area": FieldReading(area_text()),
     }
     if source is Source.QWEN_VL:
         f.update(
-            owner=FieldReading("Awa NDIAYE", 0.95), commune=FieldReading("Dakar, Médina", 0.9)
+            owner=FieldReading("Awa NDIAYE", 0.95), commune=FieldReading("Kaolack", 0.9)
         )
     if fields is not None:
         f = fields

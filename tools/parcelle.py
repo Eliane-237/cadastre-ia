@@ -1,0 +1,149 @@
+"""Construit le polygone d'un document et le donne à voir.
+
+    python tools/parcelle.py data/annotations/D10.json
+    python tools/parcelle.py reports/readings/tf.json --geojson reports/tf.geojson
+    python tools/parcelle.py data/annotations --all
+
+Le GeoJSON s'ouvre dans QGIS, ou sur geojson.io si `pyproj` est installé : la norme
+GeoJSON impose le WGS84, et sans reprojection les coordonnées restent en UTM 28N.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from model.geometry import GeometryRefusee, Parcel, parcel                 # noqa: E402
+from model.schema import (                                                 # noqa: E402
+    DATUM_RRS04,
+    Area,
+    BoundaryPoint,
+    Extracted,
+    Extraction,
+)
+
+
+def _depuis_annotation(donnees: dict) -> Extraction:
+    pts = [
+        BoundaryPoint(
+            label=p["label"], row_index=i,
+            x=Extracted[float](value=float(p["x"]), confidence=1.0, raw_text=p["x"]),
+            y=Extracted[float](value=float(p["y"]), confidence=1.0, raw_text=p["y"]),
+        )
+        for i, p in enumerate(donnees["points"])
+    ]
+    aire = donnees.get("printed_area")
+    return Extraction(
+        document_id=donnees["document_id"], points=pts, datum=DATUM_RRS04,
+        printed_area=Extracted[Area](value=Area(**aire), confidence=1.0)
+        if aire else Extracted[Area](),
+        title_number=Extracted[str](value=donnees["title_number"], confidence=1.0)
+        if donnees.get("title_number") else Extracted[str](),
+    )
+
+
+def charge(chemin: Path) -> Extraction:
+    """Une annotation ou une extraction, indifféremment."""
+    donnees = json.loads(chemin.read_text(encoding="utf-8"))
+    if "annotation_version" in donnees:
+        return _depuis_annotation(donnees)
+    return Extraction.model_validate(donnees)
+
+
+def montre(p: Parcel) -> None:
+    print(f"\n=== {p.title_number or p.document_id} ===")
+    print(f"  projection  {p.crs}")
+    print(f"  datum       {p.datum}" + ("" if p.comparable else "   ← incomparable"))
+    sommets = list(p.polygon.exterior.coords)[:-1]
+    print(f"  sommets     {len(sommets)}, du sud-ouest, dans le sens direct")
+    for i, (x, y) in enumerate(sommets, 1):
+        print(f"     {i:>2}  {x:>14.3f}  {y:>15.3f}")
+    print(f"  aire        {p.area_m2:>14.2f} m²")
+    if p.printed_m2:
+        ecart = abs(p.area_m2 - p.printed_m2) / p.printed_m2 * 100
+        print(f"  imprimée    {p.printed_m2:>14.0f} m²   écart {ecart:.2f} %")
+    else:
+        print("  imprimée    non lue sur le document")
+    x0, y0, x1, y1 = p.polygon.bounds
+    print(f"  emprise     {x1 - x0:.1f} m est-ouest, {y1 - y0:.1f} m nord-sud")
+
+
+def geojson(parcelles: list[Parcel], chemin: Path) -> None:
+    """Écrit les parcelles, reprojetées en WGS84 si `pyproj` est là."""
+    try:
+        from pyproj import Transformer
+
+        vers_wgs84 = Transformer.from_crs(parcelles[0].crs, "EPSG:4326", always_xy=True)
+        projete = vers_wgs84.transform
+        note = ("Reprojection UTM 28N → WGS84 sans transformation de datum : "
+                "l'écart RRS04/WGS84 est de l'ordre du mètre, suffisant pour regarder, "
+                "pas pour mesurer.")
+    except ImportError:
+        projete = None
+        note = (f"Coordonnées laissées en {parcelles[0].crs} : pyproj n'est pas installé. "
+                "QGIS les lira ; geojson.io attend du WGS84.")
+
+    traits = []
+    for p in parcelles:
+        anneau = [(projete(x, y) if projete else (x, y))
+                  for x, y in p.polygon.exterior.coords]
+        traits.append({
+            "type": "Feature",
+            "properties": {
+                "document": p.document_id,
+                "titre": p.title_number,
+                "titre_mere": p.mother_title,
+                "aire_m2": round(p.area_m2, 2),
+                "aire_imprimee_m2": p.printed_m2,
+                "datum": p.datum,
+            },
+            "geometry": {"type": "Polygon", "coordinates": [[list(c) for c in anneau]]},
+        })
+
+    sortie = {"type": "FeatureCollection", "note": note, "features": traits}
+    if projete is None:
+        sortie["crs"] = {"type": "name",
+                         "properties": {"name": parcelles[0].crs}}   # lu par QGIS
+    chemin.write_text(json.dumps(sortie, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"\n{chemin} — {len(traits)} parcelle(s)")
+    print(f"  {note}")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("source", type=Path, help="Un JSON d'annotation ou d'extraction, ou un dossier.")
+    ap.add_argument("--all", action="store_true", help="Tous les JSON du dossier.")
+    ap.add_argument("--geojson", type=Path, help="Écrit les polygones pour QGIS.")
+    args = ap.parse_args()
+
+    fichiers = (sorted(f for f in args.source.glob("*.json")
+                       if not f.stem.endswith("_readings"))
+                if args.all or args.source.is_dir() else [args.source])
+    if not fichiers:
+        print(f"Aucun JSON dans {args.source}.")
+        return 1
+
+    parcelles: list[Parcel] = []
+    for f in fichiers:
+        try:
+            p = parcel(charge(f))
+        except GeometryRefusee as exc:
+            print(f"\n=== {f.stem} ===\n  REFUS : {exc}")
+            continue
+        except Exception as exc:                      # noqa: BLE001
+            print(f"\n=== {f.stem} ===\n  illisible : {type(exc).__name__}: {exc}")
+            continue
+        montre(p)
+        parcelles.append(p)
+
+    if args.geojson and parcelles:
+        geojson(parcelles, args.geojson)
+    return 0 if parcelles else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -72,3 +72,38 @@ def test_tableau_sans_coordonnees_ignore():
 def test_repli_texte():
     pts = points_from_text("Tableau\nB1 381210.57 1564042.96\nB2  381 225,56  1 564 034,94\nfin")
     assert [(p.label, p.x) for p in pts] == [("B1", "381210.57"), ("B2", "381 225,56")]
+
+
+# ------------------------------------------------------- taille plausible d'une region
+
+
+def _grille(x0, y0, x1, y1):
+    return {"parsing_res_list": [{"block_label": "table", "block_bbox": [x0, y0, x1, y1]}]}
+
+
+def test_region_minuscule_refusee():
+    from model.table_locator import locate
+
+    # 31 x 48 sur une page de 1001 x 641 : le cas reel de 54987580. Deux colonnes de six
+    # et sept chiffres n'y tiennent pas.
+    assert locate(_grille(100, 100, 131, 148), (1001, 641)) == []
+
+
+def test_region_de_taille_reelle_acceptee():
+    from model.table_locator import locate
+
+    # 148 x 73 sur 639 x 854 : le plus petit tableau reellement localise du corpus.
+    regions = locate(_grille(6, 370, 154, 443), (639, 854))
+    assert len(regions) == 1 and regions[0].source == "etiquette"
+
+
+def test_region_plus_grande_que_la_page_refusee():
+    from model.table_locator import locate
+
+    assert locate(_grille(0, 0, 900, 800), (1001, 641)) == []
+
+
+def test_sans_taille_connue_on_ne_filtre_pas_sur_la_taille():
+    from model.table_locator import locate
+
+    assert len(locate(_grille(100, 100, 131, 148), None)) == 1

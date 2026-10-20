@@ -16,6 +16,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from model.area_locator import best_region as aire_best_region
 from model.config import SETTINGS, Settings
 from model.merge_readings import fuse
 from model.preprocess import apply_orientation, file_sha256, load_pages, preprocess
@@ -36,6 +37,29 @@ def default_readers(cfg: Settings = SETTINGS) -> tuple[Reader, Reader]:
     from model.qwen_reader import QwenVLReader
 
     return PaddleVLReader(cfg.paddle), QwenVLReader(cfg.qwen)
+
+
+def _aire_lue(*listes: list[DocumentReading]) -> bool:
+    """Un des lecteurs a-t-il deja vu la superficie sur la page entiere ?"""
+    return any(r.field("area").raw for liste in listes for r in liste)
+
+
+def _aire_seule(r: DocumentReading) -> DocumentReading:
+    """D'une relecture de fragment, ne garder que la superficie.
+
+    Le fragment ne montre qu'un coin de la feuille. Tout autre champ que le lecteur
+    croirait y reconnaitre serait invente, et `merge_pages` pourrait le retenir pour un
+    champ que la page entiere n'a pas donne. On jette aussi les points : le tableau de
+    coordonnees n'est pas dans ce fragment.
+    """
+    aire = r.field("area")
+    return DocumentReading(
+        source=r.source,
+        model=r.model,
+        fields={"area": aire} if aire.raw else {},
+        raw_output=r.raw_output,
+        orientation_deg=r.orientation_deg,
+    )
 
 
 def run(
@@ -120,6 +144,36 @@ def run(
                             pre_log[-1][f"table_rescan_{cle}"] = f"{type(exc).__name__}: {exc}"
                         timings[f"{cle}_table"] = (
                             timings.get(f"{cle}_table", 0.0) + time.perf_counter() - t
+                        )
+
+        # Relecture ciblee de la superficie. Elle juge toute la validation geometrique :
+        # sans elle, l'aire de Gauss n'est confrontee a rien et le document ne peut plus se
+        # contredire lui-meme. On ne paie cette relecture que si la page entiere n'a rien
+        # donne — quand elle a lu la superficie, `merge_pages` la garderait de toute facon.
+        if cfg.area_rescan and not _aire_lue(paddle_pages, qwen_pages):
+            region = aire_best_region(paddle_pages[-1].raw_output if paddle_pages else None,
+                                      image)
+            pre_log[-1]["area_region"] = (
+                {"bbox": [round(v, 1) for v in region.bbox], "source": region.source}
+                if region is not None
+                else None
+            )
+            if region is not None:
+                fragment = crop_region(image, region.bbox, cfg.area_zoom)
+                if fragment is not None:
+                    for actif, lecteur, liste, cle in (
+                        (use_paddle, paddle, paddle_pages, "paddle"),
+                        (use_qwen, qwen, qwen_pages, "qwen"),
+                    ):
+                        if not actif or cle in errors or lecteur is None:
+                            continue
+                        t = time.perf_counter()
+                        try:
+                            liste.append(_aire_seule(lecteur.read(fragment)))
+                        except Exception as exc:  # noqa: BLE001
+                            pre_log[-1][f"area_rescan_{cle}"] = f"{type(exc).__name__}: {exc}"
+                        timings[f"{cle}_area"] = (
+                            timings.get(f"{cle}_area", 0.0) + time.perf_counter() - t
                         )
 
     pr = merge_pages(paddle_pages) if paddle_pages and "paddle" not in errors else None

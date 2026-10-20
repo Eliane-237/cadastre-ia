@@ -27,7 +27,7 @@ def test_accord_des_deux_lecteurs():
     assert p.x.value == 381210.57 and p.x.source is Source.CONSENSUS
     assert p.x.confidence == CFG.conf_agree
     assert [r.source for r in p.x.readings] == [Source.PADDLE_VL, Source.QWEN_VL]
-    assert ex.title_number.source is Source.CONSENSUS and ex.title_number.value == "TF 1738/DK"
+    assert ex.title_number.source is Source.CONSENSUS and ex.title_number.value == "TF 1738/KL"
     assert (
         ex.owner.source is Source.QWEN_VL and ex.owner.confidence == 0.9
     )  # plafond lecture unique
@@ -56,7 +56,7 @@ def test_la_geometrie_peut_donner_raison_a_qwen():
 
 
 def test_desaccord_sans_preuve_geometrique_part_en_revue():
-    no_area = {"title_number": FieldReading("TF 1738/DK")}
+    no_area = {"title_number": FieldReading("TF 1738/KL")}
     wrong = with_coord(COORDS, 2, "y", "1564081.22")
     ex, rep = fuse(
         "D",
@@ -129,3 +129,64 @@ def test_cotes_fusionnes(dist):
     ex, _ = fuse("D", reading(Source.PADDLE_VL), q, CFG)
     s0 = ex.printed_sides[0]
     assert s0.source is (Source.CONSENSUS if dist == SIDES[0] else Source.PADDLE_VL)
+
+
+# --------------------------------------------------- forme retenue entre lectures concordantes
+
+
+@pytest.mark.parametrize(
+    "texte, attendu",
+    [
+        ("14 DEC 2020", 0),
+        ("1.4.DEC.2020", 2),      # le point coupe « 4|DEC » puis « DEC|2020 »
+        ("234773.60", 0),         # decimale : un point entre deux chiffres n'est pas du bruit
+        ("1627666.10", 0),
+        ("Mermoz : Sacré Coeur", 0),
+        ("Mornoz: Sacré Coeur", 0),
+        ("Grand-Dakar", 0),
+        ("05ha 89a 41ca", 0),
+    ],
+)
+def test_ponctuation_parasite(texte, attendu):
+    from model.merge_readings import _ponctuation_parasite
+
+    assert _ponctuation_parasite(texte) == attendu
+
+
+def _avec_date(source, date):
+    r = reading(source)
+    r.fields["certified_on"] = FieldReading(
+        raw=date, confidence=0.5 if date == "14 DEC 2020" else 0.99
+    )
+    return r
+
+
+def test_date_la_mieux_formee_gagne_malgre_une_confiance_plus_basse():
+    # Memes chiffres des deux cotes : les lecteurs ont lu la meme date. Le plus sur de lui
+    # porte la forme abimee ; c'est la forme propre qui doit sortir.
+    ex, _ = fuse(
+        "D",
+        _avec_date(Source.PADDLE_VL, "14 DEC 2020"),
+        _avec_date(Source.QWEN_VL, "1.4.DEC.2020"),
+        CFG,
+    )
+    assert ex.certified_on.value == "14 DEC 2020"
+    assert ex.certified_on.source is Source.CONSENSUS
+    assert ex.certified_on.confidence == CFG.conf_near_agree
+    # les deux lectures restent tracables
+    assert {r.raw_text for r in ex.certified_on.readings} == {"14 DEC 2020", "1.4.DEC.2020"}
+
+
+def test_a_forme_egale_la_confiance_departage_toujours():
+    ex, _ = fuse(
+        "D",
+        _avec_date(Source.PADDLE_VL, "14 DEC 2020"),
+        _avec_date(Source.QWEN_VL, "14 DEG 2020"),    # aucune ponctuation parasite non plus
+        CFG,
+    )
+    assert ex.certified_on.value == "14 DEG 2020"     # la plus confiante des deux
+
+
+def test_les_decimales_du_tableau_survivent_a_la_fusion():
+    ex, _ = fuse("D", reading(Source.PADDLE_VL), reading(Source.QWEN_VL), CFG)
+    assert ex.points[0].x.raw_text == COORDS[0][0]    # zeros finaux compris

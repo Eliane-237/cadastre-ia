@@ -295,3 +295,90 @@ def test_decimales_irregulieres():
 def test_colonne_reguliere_sans_bruit():
     trouves = colonne(["381210.57", "381225.56", "381219.40", "381204.41"], Y_KAOLACK)
     assert not {"COLUMN_LENGTH", "COLUMN_DECIMALS", "COLUMN_PREFIX"} & set(trouves)
+
+
+# ---------------------------------------------- coherence de la localite
+
+KAOLACK = [(381210.57, 1564042.96), (381225.56, 1564034.94),
+           (381236.10, 1564051.22), (381208.44, 1564060.13)]
+
+
+def parcelle_a(coords, **champs):
+    pts = [BoundaryPoint(label=f"B{i+1}", row_index=i, x=ex(x), y=ex(y))
+           for i, (x, y) in enumerate(coords)]
+    maj = {"points": pts, "printed_area": Extracted[Area]()}
+    maj.update({k: Extracted[str](value=v, confidence=0.9) for k, v in champs.items()})
+    return square().model_copy(update=maj)
+
+
+def test_parcelle_chez_elle():
+    assert "LOCALITE_INCOHERENTE" not in codes(validate(parcelle_a(KAOLACK, commune="Kaolack")))
+
+
+def test_parcelle_loin_de_sa_commune():
+    # Les coordonnees sont a Kaolack, le document annonce Dakar : 157 km.
+    issues = validate(parcelle_a(KAOLACK, commune="Dakar"))
+    assert "LOCALITE_INCOHERENTE" in codes(issues)
+    assert "Dakar" in next(i.message for i in issues if i.code == "LOCALITE_INCOHERENTE")
+
+
+def test_region_vaste_toleree():
+    # Une region est grande : Kaolack reste dans la region de Kaolack sans alerte,
+    # alors que le meme ecart a l'echelle d'une commune serait signale.
+    assert "LOCALITE_INCOHERENTE" not in codes(validate(parcelle_a(KAOLACK, region="Kaolack")))
+
+
+def test_localite_inconnue_ne_dit_rien():
+    # La base ne couvre que les localites principales : un nom inconnu n'accuse personne.
+    assert "LOCALITE_INCOHERENTE" not in codes(
+        validate(parcelle_a(KAOLACK, commune="Ngaparou")))
+
+
+def test_niveau_le_plus_precis_retenu():
+    # La commune est connue et fausse : on ne se rabat pas sur la region pour l'excuser.
+    assert "LOCALITE_INCOHERENTE" in codes(
+        validate(parcelle_a(KAOLACK, commune="Dakar", region="Kaolack")))
+
+
+# ------------------------------------------- un titre n'est pas son propre titre mere
+
+
+def _titres(titre, mere):
+    from model.schema import Extracted
+
+    return Extraction(
+        document_id="D",
+        title_number=Extracted[str](value=titre, confidence=0.9) if titre else Extracted[str](),
+        mother_title=Extracted[str](value=mere, confidence=0.9) if mere else Extracted[str](),
+    )
+
+
+@pytest.mark.parametrize(
+    "titre, mere, signale",
+    [
+        ("1738/DK", "1738/DK", True),                  # le cas reel de titre-foncier
+        ("1738/DK", "1738/DK (ex 3016/DG)", True),     # meme numero, ancien rappel en plus
+        ("TF 1738/DK", "1738/DK", True),               # le prefixe ne distingue pas
+        ("TF 1738/DK", "TM 1738/DK", True),
+        ("22 665/GR", "976/GR(ex 1 306/DG)", False),   # deux titres differents : rien a dire
+        ("6652/TH", "6652", False),                    # prudence : on ne signale pas un prefixe
+        (None, "1738/DK", False),                      # une seule case lue : rien a comparer
+        ("1738/DK", None, False),
+    ],
+)
+def test_titre_egal_mere(titre, mere, signale):
+    from model.validate import _check_titre_mere
+
+    codes = [i.code for i in _check_titre_mere(_titres(titre, mere))]
+    assert ("TITRE_EGAL_MERE" in codes) is signale
+
+
+def test_titre_egal_mere_envoie_en_revue_sans_bloquer_la_geometrie():
+    from model.schema import Severity
+    from model.validate import _check_titre_mere
+
+    ex = _titres("1738/DK", "1738/DK")
+    ex.issues = _check_titre_mere(ex)
+    assert ex.issues[0].severity is Severity.WARNING
+    assert not ex.has_error          # les coordonnees restent exploitables
+    assert ex.needs_review()         # mais un humain doit trancher

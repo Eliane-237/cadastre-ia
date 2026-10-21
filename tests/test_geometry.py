@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from app.geospatial.parcel import GeometryRefusee, Parcel, parcel
 from app.core.schema import (
     DATUM_INCONNU,
     DATUM_RRS04,
@@ -15,6 +14,7 @@ from app.core.schema import (
     Issue,
     Severity,
 )
+from app.geospatial.parcel import GeometryRefusee, Parcel, parcel
 
 ANNOTATIONS = Path("data/annotations")
 

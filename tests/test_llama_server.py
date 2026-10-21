@@ -6,13 +6,13 @@ import types
 
 import numpy as np
 
-from eval import evaluate
 from app.core.config import PaddleSettings, from_env
-from model.extract import run
-from model.paddle_reader import PaddleVLReader
-from model.preprocess import apply_orientation
-from model.qwen_prompt import json_schema
 from app.core.schema import Source
+from app.document.preprocess import apply_orientation
+from app.extraction.pipeline import run
+from app.extraction.readers.paddle import PaddleVLReader
+from app.extraction.readers.prompt import json_schema
+from eval import evaluate
 from tests.fake_readers import FakeReader, reading
 from tests.test_extract import scan  # noqa: F401 - fixture
 
@@ -92,7 +92,7 @@ def test_relecture_du_tableau_desactivable(scan):  # noqa: F811
 
 
 def test_deux_passes_completent_les_lectures(tmp_path, monkeypatch):
-    from model.annotation import AnnotatedPoint, Annotation, save_annotation
+    from app.review.annotation import AnnotatedPoint, Annotation, save_annotation
 
     raw, ann, out = tmp_path / "raw", tmp_path / "ann", tmp_path / "rep"
     raw.mkdir()
@@ -131,8 +131,8 @@ def test_deux_passes_completent_les_lectures(tmp_path, monkeypatch):
 def test_verification_des_serveurs(capsys):
     import httpx
 
-    from model import check_servers
     from app.core.config import Settings
+    from app.extraction.readers import health as check_servers
 
     def handler(request):
         return httpx.Response(200 if request.url.port == 8080 else 503)

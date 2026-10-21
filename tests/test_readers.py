@@ -6,11 +6,11 @@ import numpy as np
 import pytest
 
 from app.core.config import QwenSettings
-from model.paddle_reader import reading_from_result
-from model.qwen_prompt import QwenOutput, json_schema
-from model.qwen_reader import QwenVLReader, extract_json, reading_from_output
 from app.core.schema import Area, Source
-from model.token_confidence import value_confidences, value_spans
+from app.extraction.readers.paddle import reading_from_result
+from app.extraction.readers.prompt import QwenOutput, json_schema
+from app.extraction.readers.qwen import QwenVLReader, extract_json, reading_from_output
+from app.extraction.token_confidence import value_confidences, value_spans
 
 PADDLE_RESULT = {
     "width": 1654,
@@ -190,7 +190,7 @@ def test_le_prompt_ne_nomme_aucun_systeme_de_coordonnees():
     renvoyait. Un nom de systeme ecrit dans la consigne est un nom que le modele peut
     recopier comme s'il l'avait lu. Aucun ne doit y figurer, pas meme en exemple.
     """
-    from model.qwen_prompt import SYSTEM_PROMPT, USER_PROMPT
+    from app.extraction.readers.prompt import SYSTEM_PROMPT, USER_PROMPT
 
     texte = (SYSTEM_PROMPT + USER_PROMPT).upper()
     interdits = ["UTM", "WGS", "EPSG", "RRS", "RSS", "ITRF", "GRS80", "ZONE 28", "LAMBERT"]
@@ -199,15 +199,15 @@ def test_le_prompt_ne_nomme_aucun_systeme_de_coordonnees():
 
 
 def test_le_prompt_exige_null_sur_une_valeur_masquee():
-    from model.qwen_prompt import USER_PROMPT
+    from app.extraction.readers.prompt import USER_PROMPT
 
     assert "cachet" in USER_PROMPT and "null" in USER_PROMPT
 
 
 def test_le_schema_impose_reste_complet():
     """Retirer des exemples du prompt ne doit pas retirer de champs."""
-    from model.qwen_prompt import json_schema
     from app.core.schema import TEXT_FIELDS
+    from app.extraction.readers.prompt import json_schema
 
     props = json_schema()["properties"]
     manquants = [f for f in TEXT_FIELDS if f not in props]

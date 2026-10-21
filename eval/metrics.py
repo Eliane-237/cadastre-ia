@@ -16,8 +16,8 @@ from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
 
-from model.annotation import Annotation
 from app.core.schema import TEXT_FIELDS, Extracted, Extraction
+from app.review.annotation import Annotation
 
 
 class Outcome(str, Enum):
@@ -80,13 +80,17 @@ def _fmt_coord(value: float | None, decimals: int) -> str | None:
     return None if value is None else f"{value:.{decimals}f}"
 
 
-def _result(doc: str, field: str, expected: str, ex: Extracted, got: str | None, **kw) -> FieldResult:
+def _result(doc: str, field: str, expected: str, ex: Extracted, got: str | None,
+            **kw) -> FieldResult:
     return FieldResult(doc, field, expected, got, ex.confidence if ex.present else None,
                        _judge(expected, got, **kw))
 
 
 def compare(extraction: Extraction, truth: Annotation) -> DocReport:
-    """Compare une extraction à sa vérité terrain. Les points sont alignés par rang dans le tableau."""
+    """Compare une extraction à sa vérité terrain.
+
+    Les points sont alignés par rang dans le tableau.
+    """
     doc = truth.document_id
     out: list[FieldResult] = []
 
@@ -137,7 +141,10 @@ def summarize(reports: list[DocReport]) -> dict[str, object]:
 
 
 # --------------------------------------------------------------------------- calibration
-def calibration_table(results: list[FieldResult], edges: tuple[float, ...] = (0.0, 0.5, 0.7, 0.85, 0.95, 1.0001)):
+TRANCHES = (0.0, 0.5, 0.7, 0.85, 0.95, 1.0001)
+
+
+def calibration_table(results: list[FieldResult], edges: tuple[float, ...] = TRANCHES):
     """Taux d'erreur par tranche de confiance. Ne compte que les valeurs lues (confiance connue)."""
     rows = []
     scored = [r for r in results if r.confidence is not None]
@@ -149,8 +156,9 @@ def calibration_table(results: list[FieldResult], edges: tuple[float, ...] = (0.
     return rows
 
 
-def threshold_for(results: list[FieldResult], max_error_rate: float = 0.01) -> dict[str, float | None]:
-    """Plus petit seuil dont les valeurs acceptées (confiance >= seuil) respectent le taux d'erreur visé.
+def threshold_for(results: list[FieldResult],
+                  max_error_rate: float = 0.01) -> dict[str, float | None]:
+    """Plus petit seuil dont les valeurs acceptées respectent le taux d'erreur visé.
 
     Retourne aussi la part de valeurs envoyées en relecture (sous le seuil ou non lues).
     Résultat peu fiable sur un petit échantillon : à relancer quand le jeu annoté grandit.

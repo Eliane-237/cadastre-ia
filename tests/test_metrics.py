@@ -1,10 +1,16 @@
 import pytest
 
-from eval.metrics import (
-    FieldResult, Outcome, calibration_table, compare, levenshtein, summarize, threshold_for,
-)
-from model.annotation import AnnotatedPoint, Annotation
 from app.core.schema import Area, BoundaryPoint, Extracted, Extraction
+from app.review.annotation import AnnotatedPoint, Annotation
+from eval.metrics import (
+    FieldResult,
+    Outcome,
+    calibration_table,
+    compare,
+    levenshtein,
+    summarize,
+    threshold_for,
+)
 
 
 def pt(i, x, y, cx=0.9, cy=0.9):
@@ -14,7 +20,8 @@ def pt(i, x, y, cx=0.9, cy=0.9):
 
 
 TRUTH = Annotation(
-    document_id="D", image="d.png", decimals=2, title_number="TF 12/DK", printed_area=Area(a=6, ca=49),
+    document_id="D", image="d.png", decimals=2, title_number="TF 12/DK",
+    printed_area=Area(a=6, ca=49),
     points=[AnnotatedPoint(label="B1", x="381210.57", y="1564042.96"),
             AnnotatedPoint(label="B2", x="381225.56", y="1564034.94")],
 )
@@ -31,7 +38,8 @@ def test_levenshtein():
 
 
 def test_extraction_parfaite():
-    e = Extraction(document_id="D", points=[pt(0, 381210.57, 1564042.96), pt(1, 381225.56, 1564034.94)],
+    e = Extraction(document_id="D",
+                   points=[pt(0, 381210.57, 1564042.96), pt(1, 381225.56, 1564034.94)],
                    title_number=Extracted[str](value="tf 12/dk ", confidence=0.9),
                    printed_area=Extracted[Area](value=Area(a=6, ca=49), confidence=0.9))
     s = summarize([compare(e, TRUTH)])
@@ -65,7 +73,8 @@ def test_zero_final_preserve():
 
 
 def _fr(conf, ok):
-    return FieldResult("D", "f", "a", "a" if ok else "b", conf, Outcome.EXACT if ok else Outcome.WRONG)
+    return FieldResult("D", "f", "a", "a" if ok else "b", conf,
+                       Outcome.EXACT if ok else Outcome.WRONG)
 
 
 def test_calibration_et_seuil():

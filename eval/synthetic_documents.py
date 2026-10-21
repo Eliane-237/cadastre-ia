@@ -21,9 +21,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from model.annotation import AnnotatedPoint, Annotation, save_annotation
 from app.core.schema import Area
 from app.geospatial.measures import shoelace_area
+from app.review.annotation import AnnotatedPoint, Annotation, save_annotation
 
 FONT_CANDIDATES = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",

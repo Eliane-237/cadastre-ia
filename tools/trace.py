@@ -5,7 +5,7 @@
     python tools/trace.py reports/readings/tf.json --brut # sortie brute des modeles
 
 L'outil ne juge pas : il montre. Les lectures brutes sont a cote de l'extraction, dans un
-fichier « <document>_readings.json » ecrit par `python -m model ... --readings`.
+fichier « <document>_readings.json » ecrit par `python -m app ... --readings`.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.core.schema import TEXT_FIELDS                                       # noqa: E402
+from app.core.schema import TEXT_FIELDS  # noqa: E402
 
 # Les lecteurs nomment la superficie « area », le schema « printed_area ».
 CHAMPS = (*TEXT_FIELDS, "printed_area")

@@ -1,4 +1,4 @@
-from model.coordinate_table import (
+from app.extraction.coordinate_table import (
     best_coordinate_table,
     html_to_grid,
     parse_coordinate_table,
@@ -82,7 +82,7 @@ def _grille(x0, y0, x1, y1):
 
 
 def test_region_minuscule_refusee():
-    from model.table_locator import locate
+    from app.extraction.locators.table import locate
 
     # 31 x 48 sur une page de 1001 x 641 : le cas reel de 54987580. Deux colonnes de six
     # et sept chiffres n'y tiennent pas.
@@ -90,7 +90,7 @@ def test_region_minuscule_refusee():
 
 
 def test_region_de_taille_reelle_acceptee():
-    from model.table_locator import locate
+    from app.extraction.locators.table import locate
 
     # 148 x 73 sur 639 x 854 : le plus petit tableau reellement localise du corpus.
     regions = locate(_grille(6, 370, 154, 443), (639, 854))
@@ -98,12 +98,12 @@ def test_region_de_taille_reelle_acceptee():
 
 
 def test_region_plus_grande_que_la_page_refusee():
-    from model.table_locator import locate
+    from app.extraction.locators.table import locate
 
     assert locate(_grille(0, 0, 900, 800), (1001, 641)) == []
 
 
 def test_sans_taille_connue_on_ne_filtre_pas_sur_la_taille():
-    from model.table_locator import locate
+    from app.extraction.locators.table import locate
 
     assert len(locate(_grille(100, 100, 131, 148), None)) == 1

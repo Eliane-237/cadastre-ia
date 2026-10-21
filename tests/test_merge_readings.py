@@ -1,10 +1,10 @@
 import pytest
 
 from app.core.config import Settings
-from model.merge_readings import fuse
-from model.reading import FieldReading
 from app.core.schema import Source
-from model.validate import validate
+from app.extraction.merge import fuse
+from app.extraction.reading import FieldReading
+from app.validation.rules import validate
 from tests.fake_readers import AREA_M2, COORDS, SIDES, reading
 
 CFG = Settings()
@@ -148,7 +148,7 @@ def test_cotes_fusionnes(dist):
     ],
 )
 def test_ponctuation_parasite(texte, attendu):
-    from model.merge_readings import _ponctuation_parasite
+    from app.extraction.merge import _ponctuation_parasite
 
     assert _ponctuation_parasite(texte) == attendu
 

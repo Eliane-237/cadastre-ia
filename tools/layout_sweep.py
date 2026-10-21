@@ -15,9 +15,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.core.config import from_env                      # noqa: E402
-from model.paddle_reader import reading_from_result    # noqa: E402
-from model.preprocess import load_pages, preprocess    # noqa: E402
+from app.core.config import from_env  # noqa: E402
+from app.document.loader import load_pages
+from app.document.preprocess import preprocess  # noqa: E402
+from app.extraction.readers.paddle import reading_from_result  # noqa: E402
 
 _TAGS = re.compile(r"<[^>]+>")
 
@@ -78,7 +79,8 @@ def main() -> int:
 
     for name, pre_opts, overrides in VARIANTS:
         print("\n" + "=" * 110)
-        print(f"### {name}   prétraitement={pre_opts or 'défaut'}   mise en page={overrides or 'config'}")
+        print(f"### {name}   prétraitement={pre_opts or 'défaut'}   "
+              f"mise en page={overrides or 'config'}")
         print("=" * 110)
         try:
             image, steps = preprocess(page, **pre_opts)

@@ -1,11 +1,11 @@
 import cv2
 import numpy as np
 
-from model.preprocess import (
+from app.document.loader import load_image
+from app.document.preprocess import (
     find_document_quad,
     flatten_illumination,
     illumination_unevenness,
-    load_image,
     preprocess,
 )
 
@@ -95,7 +95,7 @@ def test_feuille_sur_fond_sombre_bien_recadree():
 
 
 def test_le_juge_est_la_luminosite_du_dehors():
-    from model.preprocess import _quad_borde_la_feuille, find_document_quad
+    from app.document.preprocess import _quad_borde_la_feuille, find_document_quad
 
     photo = _photo_sur_fond_sombre()
     assert _quad_borde_la_feuille(photo, find_document_quad(photo)) is True

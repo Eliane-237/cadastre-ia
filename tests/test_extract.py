@@ -4,9 +4,9 @@ import cv2
 import numpy as np
 import pytest
 
-from model.__main__ import main as cli
-from model.extract import run
+from app.__main__ import main as cli
 from app.core.schema import Extraction, Source
+from app.extraction.pipeline import run
 from tests.fake_readers import AREA_M2, COORDS, FakeReader, area_text, reading
 
 
@@ -98,7 +98,7 @@ def test_pdf_multipage(tmp_path):
 
 
 def test_cli(scan, tmp_path, monkeypatch, capsys):
-    import model.__main__ as m
+    import app.__main__ as m
 
     def fake_run(path, doc_id, **kw):
         return run(
@@ -138,7 +138,7 @@ class LecteurEnDeuxTemps(FakeReader):
 
 
 def test_la_superficie_est_relue_de_pres_quand_la_page_ne_la_donne_pas(scan):
-    from model.reading import DocumentReading, FieldReading
+    from app.extraction.reading import DocumentReading, FieldReading
 
     fragment = DocumentReading(
         source=Source.QWEN_VL, model="fake",
@@ -182,7 +182,7 @@ def test_relecture_de_superficie_en_panne_ne_casse_rien(scan):
 
 
 def _avec_systeme(source, systeme):
-    from model.reading import FieldReading
+    from app.extraction.reading import FieldReading
 
     r = reading(source)
     if systeme is not None:

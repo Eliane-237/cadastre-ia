@@ -1,6 +1,6 @@
 """Vérifie que les deux serveurs llama.cpp répondent, avant de lancer une extraction.
 
-Usage : python -m model.check_servers
+Usage : python -m app.extraction.readers.health
 """
 
 from __future__ import annotations

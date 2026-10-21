@@ -2,7 +2,8 @@
 
 Les coordonnées sont des chaînes, exactement comme imprimées (« 381210.57 »), pour ne perdre
 ni zéro final ni nombre de décimales. Le nombre de décimales fait partie de la vérité.
-Une annotation n'est pas « fiable » tant que `verified` est faux : elle doit être relue par un humain.
+Une annotation n'est pas « fiable » tant que `verified` est faux : elle doit être relue
+par un humain.
 
 Un champ vide ne dit rien par lui-même. `no_value` tranche : un champ qui y figure est un
 fait constaté sur le document, avec sa raison ; un champ ni rempli ni listé est un oubli de
@@ -62,7 +63,10 @@ class AnnotatedPoint(BaseModel):
     @classmethod
     def _format_coordonnee(cls, v: str) -> str:
         if not _COORD.match(v):
-            raise ValueError(f"coordonnée mal formée : {v!r} (attendu 5-8 chiffres, point, 1-3 décimales)")
+            raise ValueError(
+                f"coordonnée mal formée : {v!r} "
+                "(attendu 5-8 chiffres, point, 1-3 décimales)"
+            )
         return v
 
 

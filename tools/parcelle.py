@@ -17,14 +17,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.geospatial.parcel import GeometryRefusee, Parcel, parcel                 # noqa: E402
-from app.core.schema import (                                                 # noqa: E402
+from app.core.schema import (  # noqa: E402
     DATUM_RRS04,
     Area,
     BoundaryPoint,
     Extracted,
     Extraction,
 )
+from app.geospatial.parcel import GeometryRefusee, Parcel, parcel  # noqa: E402
 
 
 def _depuis_annotation(donnees: dict) -> Extraction:
@@ -150,7 +150,7 @@ def dessine(parcelles: list[Parcel], dossier: Path,
     dossier.mkdir(parents=True, exist_ok=True)
     for p in parcelles:
         sommets = list(p.polygon.exterior.coords)
-        xs, ys = zip(*sommets)
+        xs, ys = zip(*sommets, strict=False)
         fig, ax = plt.subplots(figsize=(7, 7))
         ax.plot(xs, ys, "-", linewidth=1.6, color="#1a4d7a")
         ax.fill(xs, ys, alpha=0.10, color="#1a4d7a")
@@ -162,7 +162,8 @@ def dessine(parcelles: list[Parcel], dossier: Path,
 
         ecart = ""
         if p.printed_m2:
-            ecart = f" — imprimee {p.printed_m2:.0f} m² (ecart {abs(p.area_m2 - p.printed_m2) / p.printed_m2 * 100:.2f} %)"
+            pct = abs(p.area_m2 - p.printed_m2) / p.printed_m2 * 100
+            ecart = f" — imprimee {p.printed_m2:.0f} m² (ecart {pct:.2f} %)"
         ax.set_title(f"{p.title_number or p.document_id}\n{p.area_m2:.0f} m²{ecart}", fontsize=10)
         ax.set_xlabel("Est (m)")
         ax.set_ylabel("Nord (m)")
@@ -178,7 +179,8 @@ def dessine(parcelles: list[Parcel], dossier: Path,
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("source", type=Path, help="Un JSON d'annotation ou d'extraction, ou un dossier.")
+    ap.add_argument("source", type=Path,
+                    help="Un JSON d'annotation ou d'extraction, ou un dossier.")
     ap.add_argument("--all", action="store_true", help="Tous les JSON du dossier.")
     ap.add_argument("--geojson", type=Path, help="Écrit les polygones pour QGIS.")
     ap.add_argument("--png", type=Path, nargs="?", const=Path("reports/parcelles"),

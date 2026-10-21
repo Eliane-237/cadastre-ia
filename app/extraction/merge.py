@@ -32,7 +32,6 @@ from app.core.normalize import (
     canonical_title,
     parse_area,
 )
-from model.reading import DocumentReading, FieldReading, PointReading, SideReading
 from app.core.schema import (
     TEXT_FIELDS,
     Area,
@@ -44,6 +43,7 @@ from app.core.schema import (
     Severity,
     Source,
 )
+from app.extraction.reading import DocumentReading, FieldReading, PointReading, SideReading
 from app.geospatial.measures import shoelace_area, side_length
 
 # Lecteur dont la valeur est gardée par défaut en cas de désaccord non tranché.

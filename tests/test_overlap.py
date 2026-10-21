@@ -7,8 +7,6 @@ from pathlib import Path
 import pytest
 from shapely.affinity import translate
 
-from app.geospatial.parcel import Parcel, parcel
-from app.geospatial.overlap import NonComparable, Verdict, compare, scan
 from app.core.schema import (
     DATUM_INCONNU,
     DATUM_RRS04,
@@ -17,6 +15,8 @@ from app.core.schema import (
     Extracted,
     Extraction,
 )
+from app.geospatial.overlap import NonComparable, Verdict, compare, scan
+from app.geospatial.parcel import Parcel, parcel
 
 ANNOTATIONS = Path("data/annotations")
 pytestmark = pytest.mark.skipif(not ANNOTATIONS.exists(), reason="corpus annoté absent")

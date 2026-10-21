@@ -17,7 +17,7 @@ import re
 from dataclasses import dataclass
 
 from app.core.normalize import parse_area
-from model.table_locator import _bbox, _texte, _trop_grande
+from app.extraction.locators.table import _bbox, _texte, _trop_grande
 
 _MOT = re.compile(r"superfici\w*", re.IGNORECASE)
 

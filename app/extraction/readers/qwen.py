@@ -17,11 +17,11 @@ from typing import Any
 import numpy as np
 
 from app.core.config import QwenSettings
-from model.preprocess import encode_png, limit_size
-from model.qwen_prompt import SYSTEM_PROMPT, USER_PROMPT, QwenOutput, json_schema
-from model.reading import DocumentReading, FieldReading, PointReading, SideReading
-from app.core.schema import Area, Source, TEXT_FIELDS
-from model.token_confidence import Path, value_confidences
+from app.core.schema import TEXT_FIELDS, Area, Source
+from app.document.preprocess import encode_png, limit_size
+from app.extraction.readers.prompt import SYSTEM_PROMPT, USER_PROMPT, QwenOutput, json_schema
+from app.extraction.reading import DocumentReading, FieldReading, PointReading, SideReading
+from app.extraction.token_confidence import Path, value_confidences
 
 
 def extract_json(text: str) -> tuple[dict, int]:

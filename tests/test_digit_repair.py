@@ -4,7 +4,7 @@ Les cas viennent du corpus réel : les valeurs attendues sont celles lues sur le
 et validées par leur superficie imprimée.
 """
 
-from model.digit_repair import find_repair, shoelace
+from app.extraction.digit_repair import find_repair, shoelace
 
 # tf.jpg — TITRE N° 22 665/GR, Mermoz / Sacré-Cœur. Superficie imprimée 02a 55ca = 255 m².
 TF_X = ["234773.60", "234787.39", "234778.76", "234765.02"]
@@ -65,5 +65,5 @@ def test_superficie_absente_ne_declenche_rien():
 
 
 def test_aire_de_reference():
-    points = [(float(x), float(y)) for x, y in zip(TF_X, TF_Y)]
+    points = [(float(x), float(y)) for x, y in zip(TF_X, TF_Y, strict=False)]
     assert abs(shoelace(points) - 255.24) < 0.01

@@ -9,7 +9,7 @@ from app.core.schema import (
     Extraction,
     Severity,
 )
-from model.validate import (
+from app.validation.rules import (
     datum_for,
     shoelace_area,
     side_length,
@@ -34,7 +34,8 @@ def pt(i, x, y):
 def square(side=100.0, area=None, dx=0.0):
     pts = [pt(0, BASE_X, BASE_Y), pt(1, BASE_X + side + dx, BASE_Y),
            pt(2, BASE_X + side, BASE_Y + side), pt(3, BASE_X, BASE_Y + side)]
-    printed = Extracted[Area](value=Area(ca=int(area if area is not None else side * side)), confidence=0.9)
+    ca = int(area if area is not None else side * side)
+    printed = Extracted[Area](value=Area(ca=ca), confidence=0.9)
     return Extraction(document_id="D", points=pts, printed_area=printed)
 
 
@@ -78,7 +79,8 @@ def test_coordonnee_hors_plage_bloque_la_geometrie():
 
 def test_valeur_aberrante_dans_la_plage():
     e = square()
-    e.points[2] = pt(2, BASE_X + 50_000, BASE_Y + 100)   # plausible seule, absurde pour cette parcelle
+    # plausible seule, absurde pour cette parcelle
+    e.points[2] = pt(2, BASE_X + 50_000, BASE_Y + 100)
     assert "COORD_OUTLIER" in codes(validate(e))
 
 
@@ -96,7 +98,8 @@ def test_trop_peu_de_points():
 def test_polygone_croise():
     pts = [pt(0, BASE_X, BASE_Y), pt(1, BASE_X + 100, BASE_Y + 100),
            pt(2, BASE_X + 100, BASE_Y), pt(3, BASE_X, BASE_Y + 100)]   # papillon
-    e = Extraction(document_id="D", points=pts, printed_area=Extracted[Area](value=Area(ca=5000), confidence=0.9))
+    e = Extraction(document_id="D", points=pts,
+                   printed_area=Extracted[Area](value=Area(ca=5000), confidence=0.9))
     assert "POLYGON_INVALID" in codes(validate(e))
 
 
@@ -177,7 +180,8 @@ def test_cotes_imprimes_conserves(printed, printed_m2):
 # ------------------------------------------- etiquettes, doublons et datum
 
 def renomme(extraction, labels):
-    pts = [p.model_copy(update={"label": lab}) for p, lab in zip(extraction.points, labels)]
+    pts = [p.model_copy(update={"label": lab})
+           for p, lab in zip(extraction.points, labels, strict=False)]
     return extraction.model_copy(update={"points": pts})
 
 
@@ -270,8 +274,10 @@ def colonne(xs, ys):
     pts = [BoundaryPoint(label=f"B{i+1}", row_index=i,
                          x=Extracted[float](value=float(x), confidence=1.0, raw_text=x),
                          y=Extracted[float](value=float(y), confidence=1.0, raw_text=y))
-           for i, (x, y) in enumerate(zip(xs, ys))]
-    return codes(validate(square().model_copy(update={"points": pts, "printed_area": Extracted[Area]()})))
+           for i, (x, y) in enumerate(zip(xs, ys, strict=False))]
+    modifiee = square().model_copy(
+        update={"points": pts, "printed_area": Extracted[Area]()})
+    return codes(validate(modifiee))
 
 
 Y_KAOLACK = ["1564042.96", "1564034.94", "1564023.49", "1564031.51"]
@@ -367,7 +373,7 @@ def _titres(titre, mere):
     ],
 )
 def test_titre_egal_mere(titre, mere, signale):
-    from model.validate import _check_titre_mere
+    from app.validation.rules import _check_titre_mere
 
     codes = [i.code for i in _check_titre_mere(_titres(titre, mere))]
     assert ("TITRE_EGAL_MERE" in codes) is signale
@@ -375,7 +381,7 @@ def test_titre_egal_mere(titre, mere, signale):
 
 def test_titre_egal_mere_envoie_en_revue_sans_bloquer_la_geometrie():
     from app.core.schema import Severity
-    from model.validate import _check_titre_mere
+    from app.validation.rules import _check_titre_mere
 
     ex = _titres("1738/DK", "1738/DK")
     ex.issues = _check_titre_mere(ex)

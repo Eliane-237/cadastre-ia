@@ -152,7 +152,7 @@ def find_repair(
     if len(xs) != len(ys) or len(xs) < 3 or not printed_m2:
         return None
     try:
-        base = [(float(x), float(y)) for x, y in zip(xs, ys)]
+        base = [(float(x), float(y)) for x, y in zip(xs, ys, strict=False)]
     except ValueError:
         return None
 

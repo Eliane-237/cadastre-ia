@@ -16,14 +16,15 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from model.area_locator import best_region as aire_best_region
 from app.core.config import SETTINGS, Settings
-from model.merge_readings import fuse
-from model.preprocess import apply_orientation, file_sha256, load_pages, preprocess
-from model.table_locator import best_region, crop_region
-from model.reading import DocumentReading, Reader, merge_pages
 from app.core.schema import Extraction, Issue, Severity
-from model.validate import datum_for, validate
+from app.document.loader import file_sha256, load_pages
+from app.document.preprocess import apply_orientation, preprocess
+from app.extraction.locators.area import best_region as aire_best_region
+from app.extraction.locators.table import best_region, crop_region
+from app.extraction.merge import fuse
+from app.extraction.reading import DocumentReading, Reader, merge_pages
+from app.validation.rules import datum_for, validate
 
 
 @dataclass
@@ -33,8 +34,8 @@ class ExtractionRun:
 
 
 def default_readers(cfg: Settings = SETTINGS) -> tuple[Reader, Reader]:
-    from model.paddle_reader import PaddleVLReader
-    from model.qwen_reader import QwenVLReader
+    from app.extraction.readers.paddle import PaddleVLReader
+    from app.extraction.readers.qwen import QwenVLReader
 
     return PaddleVLReader(cfg.paddle), QwenVLReader(cfg.qwen)
 

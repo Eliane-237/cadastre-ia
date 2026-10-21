@@ -7,7 +7,8 @@ de 148x73 px au lieu de la page, passe de trois chiffres faux a zero.
 Cet outil ne modifie pas le pipeline : il compare, pour un document, les coordonnees de la
 passe 1 (page entiere) a celles d'une relecture du seul fragment, a plusieurs grossissements.
 
-    python tools/table_rescan.py "data/raw/images (5).jfif" "reports/readings/images (5)_readings.json"
+    python tools/table_rescan.py "data/raw/images (5).jfif" \
+        "reports/readings/images (5)_readings.json"
     python tools/table_rescan.py data/raw/tf.jpg reports/readings/tf_readings.json --scales 1 2 4
 """
 
@@ -22,9 +23,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.core.config import from_env                                  # noqa: E402
-from model.preprocess import load_pages, preprocess                # noqa: E402
-from tools.table_by_content import candidates                      # noqa: E402
+from app.core.config import from_env  # noqa: E402
+from app.document.loader import load_pages
+from app.document.preprocess import preprocess  # noqa: E402
+from tools.table_by_content import candidates  # noqa: E402
 
 # Marge autour de la region : les bordures du tableau et la ligne d'en-tete aident le modele.
 MARGIN_RATIO = 0.06
@@ -104,12 +106,12 @@ def main() -> int:
         # exploiter un bloc reconnu comme tableau dont le contenu n'a pas ete transcrit.
         import json as _json
 
-        from model.table_locator import locate
+        from app.extraction.locators.table import locate
 
         donnees = _json.loads(args.readings.read_text(encoding="utf-8"))
         regions = []
         for lecture in donnees.values():
-            regions += locate(((lecture or {}).get("raw_output") or {}))
+            regions += locate((lecture or {}).get("raw_output") or {})
         if regions:
             bbox, source = regions[0].bbox, f"table_locator ({regions[0].confiance})"
     if bbox is None:
@@ -139,10 +141,10 @@ def main() -> int:
 
     readers = []
     if args.reader in ("paddle", "both"):
-        from model.paddle_reader import PaddleVLReader
+        from app.extraction.readers.paddle import PaddleVLReader
         readers.append(("paddle", PaddleVLReader(cfg.paddle)))
     if args.reader in ("qwen", "both"):
-        from model.qwen_reader import QwenVLReader
+        from app.extraction.readers.qwen import QwenVLReader
         readers.append(("qwen", QwenVLReader(cfg.qwen)))
 
     args.save.mkdir(parents=True, exist_ok=True)
@@ -161,7 +163,8 @@ def main() -> int:
                 bons = sum(
                     1
                     for lab, x, y in lus
-                    for attendu, valeur in zip(verite.get(lab or "", (None, None)), (x, y))
+                    for attendu, valeur in zip(verite.get(lab or "", (None, None)),
+                                               (x, y), strict=False)
                     if attendu is not None and str(valeur) == str(attendu)
                 )
                 total = 2 * len(verite)

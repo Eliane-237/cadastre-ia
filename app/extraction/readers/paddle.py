@@ -15,10 +15,10 @@ from typing import Any
 import numpy as np
 
 from app.core.config import PaddleSettings
-from model.coordinate_table import best_coordinate_table, points_from_text
 from app.core.normalize import fix_digits, parse_area
-from model.reading import DocumentReading, FieldReading, PointReading
 from app.core.schema import BBox, Source
+from app.extraction.coordinate_table import best_coordinate_table, points_from_text
+from app.extraction.reading import DocumentReading, FieldReading, PointReading
 
 MODEL_ID = "PaddlePaddle/PaddleOCR-VL-1.6"
 

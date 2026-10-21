@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
-from model.reading import DocumentReading, FieldReading, PointReading, SideReading
 from app.core.schema import Source
+from app.extraction.reading import DocumentReading, FieldReading, PointReading, SideReading
 from app.geospatial.measures import shoelace_area
 
 # Pentagone réaliste, coordonnées imprimées avec 2 décimales (Kaolack, UTM 28N).

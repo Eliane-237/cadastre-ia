@@ -37,10 +37,10 @@ SCHEMA_VERSION = "2.0"
 # Anomalies qui n'empêchent pas de construire la géométrie mais qui doivent passer sous
 # un œil humain. Une alerte seule ne déclenche pas la revue : celles-ci, si.
 REVIEW_CODES: frozenset[str] = frozenset({"TITRE_EGAL_MERE"})
-REVIEW_THRESHOLD = SETTINGS.review_threshold  # valeur de travail, voir model/config.py
+REVIEW_THRESHOLD = SETTINGS.review_threshold  # valeur de travail, voir app/core/config.py
 
 # Champs texte du document, dans l'ordre du formulaire. Une case imprimée = un champ.
-# Partagé avec model/annotation.py pour que la vérité terrain ait exactement la même forme.
+# Partagé avec app/review/annotation.py pour que la vérité terrain ait exactement la même forme.
 TEXT_FIELDS: tuple[str, ...] = (
     "title_number",       # « TITRE N° » — null si la case est vide
     "mother_title",       # « Titre Mère n° »

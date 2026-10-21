@@ -1,7 +1,7 @@
-"""Usage : python -m model DOCUMENT [--id D01] [--out resultat.json] [--readings lectures.json]
+"""Usage : python -m app DOCUMENT [--id D01] [--out resultat.json] [--readings lectures.json]
                            [--only paddle|qwen]
 
-Les serveurs des modèles se règlent par variables d'environnement (voir model/config.py) :
+Les serveurs des modèles se règlent par variables d'environnement (voir app/core/config.py) :
 CADASTRE_PADDLE_URL, CADASTRE_QWEN_URL, CADASTRE_PADDLE_DEVICE (voir scripts/set_env.ps1).
 """
 
@@ -13,9 +13,9 @@ import sys
 from pathlib import Path
 
 from app.core.config import from_env
-from model.extract import run
-from model.reading import reading_to_dict
 from app.core.schema import Severity
+from app.extraction.pipeline import run
+from app.extraction.reading import reading_to_dict
 
 _ICON = {Severity.ERROR: "✗", Severity.WARNING: "!", Severity.INFO: "i"}
 

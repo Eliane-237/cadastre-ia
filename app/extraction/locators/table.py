@@ -118,7 +118,7 @@ def locate_by_grid(image, taille: tuple[int, int] | None = None) -> list[Region]
     Importé paresseusement : ce repli a besoin d'OpenCV, dont le reste du module
     se passe.
     """
-    from tools.table_detect import find_grids
+    from app.extraction.locators.grid import find_grids
 
     regions = []
     for g in find_grids(image):

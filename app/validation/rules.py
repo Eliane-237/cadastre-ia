@@ -13,10 +13,7 @@ from collections import Counter
 
 from shapely.geometry import Polygon
 
-from app.geospatial.measures import Coord, shoelace_area, side_length
-
 from app.core.config import SETTINGS, Settings
-from model.localites import distance_m
 from app.core.normalize import canonical_label
 from app.core.schema import (
     DATUM_INCONNU,
@@ -26,6 +23,9 @@ from app.core.schema import (
     Issue,
     Severity,
 )
+from app.geospatial.measures import Coord, shoelace_area, side_length
+from app.validation.localites import distance_m
+
 
 def _coords(points: list[BoundaryPoint]) -> list[Coord]:
     return [(p.x.value, p.y.value) for p in points]  # type: ignore[misc]  # complétude vérifiée avant
@@ -190,7 +190,8 @@ def _check_duplicates(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]
     # Une même valeur sur trois lignes ou plus d'une colonne : la case a été recopiée.
     # Deux sommets peuvent légitimement partager une abscisse (parcelle rectangulaire) ;
     # trois, c'est que trois bornes seraient alignées, ce qui n'arrive pour ainsi dire pas.
-    for axe, valeurs in (("X", [p.x.value for p in complets]), ("Y", [p.y.value for p in complets])):
+    for axe, valeurs in (("X", [p.x.value for p in complets]),
+                         ("Y", [p.y.value for p in complets])):
         for valeur, n in Counter(valeurs).items():
             if n >= cfg.max_identical_coordinates:
                 issues.append(
@@ -241,13 +242,16 @@ def _check_values(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
     for p in points:
         if not p.complete:
             missing = [a for a in ("x", "y") if not getattr(p, a).present]
-            issues.append(Issue(code="POINT_INCOMPLETE", severity=Severity.ERROR, point_labels=[p.label],
-                                message=f"Point {p.label} : coordonnée {', '.join(missing)} non lue."))
+            issues.append(Issue(
+                code="POINT_INCOMPLETE", severity=Severity.ERROR, point_labels=[p.label],
+                message=f"Point {p.label} : coordonnée {', '.join(missing)} non lue."))
             continue
         bad = _out_of_range(p, cfg)
         if bad:
-            issues.append(Issue(code="COORD_OUT_OF_RANGE", severity=Severity.ERROR, point_labels=[p.label],
-                                message=f"Point {p.label} hors de la plage UTM 28N attendue ({', '.join(bad)})."))
+            issues.append(Issue(
+                code="COORD_OUT_OF_RANGE", severity=Severity.ERROR, point_labels=[p.label],
+                message=f"Point {p.label} hors de la plage UTM 28N attendue "
+                        f"({', '.join(bad)})."))
     ok = [p for p in points if p.complete]
     if len(ok) >= 3:
         mx = statistics.median(p.x.value for p in ok)  # type: ignore[misc]
@@ -257,9 +261,10 @@ def _check_values(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
             if p.label in flagged:
                 continue
             if max(abs(p.x.value - mx), abs(p.y.value - my)) > cfg.max_parcel_extent_m:  # type: ignore[operator]
-                issues.append(Issue(code="COORD_OUTLIER", severity=Severity.ERROR, point_labels=[p.label],
-                                    message=f"Point {p.label} à plus de {cfg.max_parcel_extent_m:.0f} m "
-                                            "des autres : probablement mal lu."))
+                issues.append(Issue(
+                    code="COORD_OUTLIER", severity=Severity.ERROR, point_labels=[p.label],
+                    message=f"Point {p.label} à plus de {cfg.max_parcel_extent_m:.0f} m "
+                            "des autres : probablement mal lu."))
     return issues
 
 
@@ -370,7 +375,8 @@ def _check_columns(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
         longueurs = [len(c.split(".")[0]) for c in chaines]
         attendue = _dominant(longueurs, cfg.column_min_share)
         if attendue is not None:
-            ecarts = [p.label for (p, _), n in zip(champs, longueurs) if n != attendue]
+            ecarts = [p.label for (p, _), n in zip(champs, longueurs, strict=False)
+                      if n != attendue]
             if ecarts:
                 issues.append(Issue(
                     code="COLUMN_LENGTH", severity=Severity.WARNING, point_labels=ecarts,
@@ -381,7 +387,8 @@ def _check_columns(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
         decimales = [len(c.split(".")[1]) if "." in c else 0 for c in chaines]
         attendues = _dominant(decimales, cfg.column_min_share)
         if attendues is not None:
-            ecarts = [p.label for (p, _), n in zip(champs, decimales) if n != attendues]
+            ecarts = [p.label for (p, _), n in zip(champs, decimales, strict=False)
+                      if n != attendues]
             if ecarts:
                 issues.append(Issue(
                     code="COLUMN_DECIMALS", severity=Severity.WARNING, point_labels=ecarts,
@@ -391,7 +398,7 @@ def _check_columns(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
 
         prefixe = _prefixe_dominant(chaines, cfg.column_min_share)
         if prefixe is not None:
-            ecarts = [p.label for (p, _), c in zip(champs, chaines)
+            ecarts = [p.label for (p, _), c in zip(champs, chaines, strict=False)
                       if not c.split(".")[0].startswith(prefixe)]
             if ecarts:
                 issues.append(Issue(
@@ -480,9 +487,11 @@ def _check_sides(
     fset = set(failing)
     for i in sorted(fset):
         if (i - 1) % n in fset and n > 2:
-            issues.append(Issue(code="POINT_SUSPECT", severity=Severity.WARNING, point_labels=[points[i].label],
-                                message=f"Point {points[i].label} : les deux côtés qui y aboutissent "
-                                        "sont incohérents avec le plan."))
+            issues.append(Issue(
+                code="POINT_SUSPECT", severity=Severity.WARNING,
+                point_labels=[points[i].label],
+                message=f"Point {points[i].label} : les deux côtés qui y aboutissent "
+                        "sont incohérents avec le plan."))
     return issues
 
 
@@ -528,8 +537,10 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
     if any(i.severity is Severity.ERROR for i in issues) or any(
         i.code == "CRS_HORS_UTM28N" for i in issues
     ):
-        issues.append(Issue(code="GEOMETRY_SKIPPED", severity=Severity.INFO,
-                            message="Superficie et côtés non contrôlés : des coordonnées sont à corriger d'abord."))
+        issues.append(Issue(
+            code="GEOMETRY_SKIPPED", severity=Severity.INFO,
+            message="Superficie et côtés non contrôlés : "
+                    "des coordonnées sont à corriger d'abord."))
         return issues
     if len(points) < 3:
         issues.append(Issue(code="TOO_FEW_POINTS", severity=Severity.ERROR,
@@ -540,7 +551,8 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
     if not Polygon(coords).is_valid:
         issues.append(Issue(code="POLYGON_INVALID", severity=Severity.ERROR,
                             point_labels=[p.label for p in points],
-                            message="Le polygone se recoupe lui-même : ordre des points ou lecture à vérifier."))
+                            message="Le polygone se recoupe lui-même : "
+                                    "ordre des points ou lecture à vérifier."))
 
     area = shoelace_area(coords)
     printed_m2: float | None = None
@@ -549,9 +561,11 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
         printed_m2 = float(printed) if printed else None
         gap = abs(area - printed) / printed * 100 if printed else math.inf
         if gap > cfg.area_tolerance_pct:
-            issues.append(Issue(code="AREA_MISMATCH", severity=Severity.ERROR,
-                                message=f"Superficie calculée {area:.1f} m² contre {printed:.0f} m² imprimés "
-                                        f"(écart {gap:.1f} %, tolérance {cfg.area_tolerance_pct} %)."))
+            issues.append(Issue(
+                code="AREA_MISMATCH", severity=Severity.ERROR,
+                message=f"Superficie calculée {area:.1f} m² contre "
+                        f"{printed:.0f} m² imprimés "
+                        f"(écart {gap:.1f} %, tolérance {cfg.area_tolerance_pct} %)."))
     else:
         issues.append(Issue(code="AREA_UNAVAILABLE", severity=Severity.INFO,
                             message="Superficie imprimée non lue : cohérence non vérifiée."))

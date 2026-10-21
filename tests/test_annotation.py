@@ -4,14 +4,14 @@ import pytest
 from openpyxl import Workbook
 from pydantic import ValidationError
 
-from eval.xlsx_to_annotations import convert
-from model.annotation import (
+from app.review.annotation import (
     AnnotatedPoint,
     Annotation,
     NoValue,
     load_all,
     save_annotation,
 )
+from eval.xlsx_to_annotations import convert
 
 
 def test_coordonnee_mal_formee_refusee():

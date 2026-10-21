@@ -16,10 +16,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.geospatial.parcel import GeometryRefusee, Parcel, parcel                 # noqa: E402
-from app.geospatial.overlap import NonComparable, compare                          # noqa: E402
-from app.geospatial.procrustes import RecalageImpossible, concordent, superpose    # noqa: E402
-from tools.parcelle import charge                                         # noqa: E402
+from app.geospatial.overlap import NonComparable, compare  # noqa: E402
+from app.geospatial.parcel import GeometryRefusee, Parcel, parcel  # noqa: E402
+from app.geospatial.procrustes import RecalageImpossible, concordent, superpose  # noqa: E402
+from tools.parcelle import charge  # noqa: E402
 
 TOLERANCE_PCT = 1.0
 
@@ -91,7 +91,7 @@ def dessine(parcelles: list[Parcel], dossier: Path) -> None:
     dossier.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8, 8))
     for p in parcelles:
-        xs, ys = zip(*list(p.polygon.exterior.coords))
+        xs, ys = zip(*list(p.polygon.exterior.coords), strict=False)
         ax.plot(xs, ys, "-", linewidth=1.4)
         ax.fill(xs, ys, alpha=0.12)
         cx, cy = p.polygon.centroid.x, p.polygon.centroid.y
@@ -103,7 +103,7 @@ def dessine(parcelles: list[Parcel], dossier: Path) -> None:
         except Exception:                               # noqa: BLE001
             continue
         if not commun.is_empty and commun.area > 0:
-            xs, ys = zip(*list(commun.exterior.coords))
+            xs, ys = zip(*list(commun.exterior.coords), strict=False)
             ax.fill(xs, ys, color="#c0392b", alpha=0.45, hatch="//", zorder=5)
     ax.set_aspect("equal")
     ax.set_xlabel("Est (m)")

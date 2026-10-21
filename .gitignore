@@ -8,6 +8,9 @@ __pycache__/
 # Données sensibles : jamais versionnées
 data/raw/
 data/annotations/
+# Parcelles enregistrées et journal des décisions : données réelles
+data/parcelles/
+data/historique.jsonl
 *.xlsx
 # Lectures brutes et rapports sur données réelles : contiennent noms et coordonnées
 reports/readings/

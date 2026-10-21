@@ -122,3 +122,50 @@ def test_action_inconnue_refusee(client):
 def test_decision_sans_auteur_refusee(client):
     r = client.post("/revue/D", json={"action": "acceptee", "auteur": "   "})
     assert r.status_code == 422
+
+
+# ------------------------------------------------- ce qui se voit : tracé et carte
+
+
+def test_tracer_une_extraction_sans_la_lire_ni_lenregistrer(client):
+    r = client.post("/parcelles/apercu", json=_corps())
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+    assert r.content[:4] == b"\x89PNG"
+    assert client.get("/parcelles").json()["total"] == 0      # rien n'a été écrit
+
+
+def test_le_trace_dune_parcelle_enregistree(client):
+    client.post("/parcelles", json=_corps())
+    r = client.get("/parcelles/D/apercu")
+    assert r.status_code == 200 and r.content[:4] == b"\x89PNG"
+
+
+def test_geojson_dune_parcelle(client):
+    client.post("/parcelles", json=_corps())
+    g = client.get("/parcelles/D/geojson").json()
+    assert g["type"] == "FeatureCollection" and len(g["features"]) == 1
+    lon, lat = g["features"][0]["geometry"]["coordinates"][0][0]
+    assert -18 < lon < -11 and 12 < lat < 17            # le Sénégal, en WGS84
+    assert "datum" in g["note"]                        # la réserve accompagne la sortie
+
+
+def test_la_carte_de_toute_la_base(client):
+    assert client.get("/parcelles/geojson").json()["features"] == []
+    client.post("/parcelles", json=_corps("A"))
+    client.post("/parcelles", json=_corps("B"))
+    assert len(client.get("/parcelles/geojson").json()["features"]) == 2
+
+
+def test_la_confrontation_rend_de_quoi_lafficher(client):
+    client.post("/parcelles", json=_corps("VOISIN"))
+    r = client.post("/parcelles/confrontation", json=_corps("NOUVEAU")).json()
+    assert r["centre"] is not None
+    # la nouvelle parcelle et sa voisine sur la même couche
+    assert len(r["geojson"]["features"]) == 2
+
+
+def test_une_geometrie_irrecevable_ne_se_trace_pas(client):
+    corps = _corps()
+    corps["extraction"]["points"] = corps["extraction"]["points"][:2]   # 2 sommets
+    assert client.post("/parcelles/apercu", json=corps).status_code == 422

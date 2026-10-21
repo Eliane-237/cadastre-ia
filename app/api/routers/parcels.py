@@ -7,7 +7,7 @@ conflit qu'on prétend détecter.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
 from app.api.deps import depot
 from app.api.schemas import (
@@ -16,8 +16,10 @@ from app.api.schemas import (
     ParcelleOut,
     RecouvrementOut,
 )
+from app.geospatial.export import centre_wgs84, to_geojson
 from app.geospatial.overlap import NonComparable, scan
 from app.geospatial.parcel import GeometryRefusee, parcel
+from app.geospatial.render import RenduIndisponible, apercu_png, libelles_imprimes
 from app.storage.repository import NonEnregistrable
 from app.validation.verdict import juger
 
@@ -31,18 +33,48 @@ def _parcelle(extraction):
         raise HTTPException(422, str(exc)) from exc
 
 
+def _png(parcelle, libelles) -> Response:
+    try:
+        return Response(apercu_png(parcelle, libelles), media_type="image/png")
+    except RenduIndisponible as exc:
+        raise HTTPException(503, str(exc)) from exc
+
+
+@router.post("/apercu", summary="Tracer une extraction, sans la lire ni l'enregistrer",
+             response_class=Response,
+             responses={200: {"content": {"image/png": {}}, "description": "Le tracé"}})
+def apercu(corps: EnregistrementIn) -> Response:
+    """Le polygone dessiné, en PNG. Aucun modèle n'est appelé : c'est du calcul pur.
+
+    C'est ce qu'un agent regarde avant de décider — le tracé à côté du plan imprimé.
+    Séparé de `/documents` pour qu'un changement d'avis ne coûte pas une seconde lecture.
+    """
+    return _png(_parcelle(corps.extraction), libelles_imprimes(corps.extraction))
+
+
+@router.get("/geojson", summary="Toute la base en GeoJSON, pour une carte")
+def carte() -> dict:
+    """La couche à poser sur une carte web, ou à ouvrir dans QGIS."""
+    return to_geojson(depot().all())
+
+
 @router.post("/confrontation", summary="Confronter une extraction à la base, sans enregistrer")
 def confronter(corps: EnregistrementIn) -> dict:
     """Ce que cette parcelle recouvrirait si on l'enregistrait. Aucune écriture."""
     p = _parcelle(corps.extraction)
+    voisines = depot().near(p.polygon.bounds)
     try:
-        trouves = scan(p, depot().near(p.polygon.bounds))
+        trouves = scan(p, voisines)
     except NonComparable as exc:
         raise HTTPException(409, str(exc)) from exc
     return {
         "parcelle": ParcelleOut.de(p),
+        "centre": centre_wgs84(p),
         "recouvrements": [RecouvrementOut.de(r) for r in trouves],
         "conflits": sum(1 for r in trouves if r.conflit),
+        # La nouvelle parcelle et ses voisines d'enveloppe sur la même couche : c'est en
+        # les superposant qu'on voit ce qui se chevauche.
+        "geojson": to_geojson([p, *voisines]),
     }
 
 
@@ -81,6 +113,19 @@ def recouvrements(document_id: str) -> dict:
     return {"document_id": document_id,
             "recouvrements": [RecouvrementOut.de(r) for r in trouves],
             "conflits": sum(1 for r in trouves if r.conflit)}
+
+
+@router.get("/{document_id:path}/apercu", summary="Le tracé d'une parcelle enregistrée",
+            response_class=Response,
+            responses={200: {"content": {"image/png": {}}, "description": "Le tracé"}})
+def apercu_enregistree(document_id: str) -> Response:
+    enregistree = _trouve(document_id)
+    return _png(enregistree.parcelle, libelles_imprimes(enregistree.extraction))
+
+
+@router.get("/{document_id:path}/geojson", summary="Une parcelle en GeoJSON")
+def geojson_enregistree(document_id: str) -> dict:
+    return to_geojson([_trouve(document_id).parcelle])
 
 
 @router.get("/{document_id:path}", summary="Une parcelle enregistrée")

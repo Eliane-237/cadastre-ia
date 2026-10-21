@@ -171,3 +171,6 @@ python -m eval.evaluate data\raw data\annotations reports
 
 python tools/trace.py reports/readings --resume
 python tools/trace.py reports/readings/tf.json
+
+python -m pip install fastapi "uvicorn[standard]" python-multipart
+uvicorn main:app --reload

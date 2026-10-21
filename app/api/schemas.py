@@ -67,12 +67,25 @@ class RecouvrementOut(BaseModel):
 
 
 class LectureOut(BaseModel):
-    """Le résultat d'une lecture de document : ce qu'on a lu, et ce qu'on en juge."""
+    """Le résultat d'une lecture de document : ce qu'on a lu, et ce qu'on en juge.
+
+    `geojson` et `centre` sont là pour la carte, `apercu_png` pour l'œil. Tout arrive
+    dans la même réponse parce que rien n'est encore enregistré : il n'y a pas
+    d'identifiant pour aller rechercher le dessin dans un second appel.
+    """
 
     extraction: Extraction
     jugement: JugementOut
     parcelle: ParcelleOut | None = None
     geometrie_refusee: str | None = None
+    geojson: dict | None = Field(
+        default=None, description="FeatureCollection en WGS84, prête pour une carte.")
+    centre: tuple[float, float] | None = Field(
+        default=None, description="Longitude et latitude du centroïde, pour poser un repère.")
+    apercu_png: str | None = Field(
+        default=None,
+        description="Le tracé en PNG, encodé en base64. Demandé par `apercu=true` : "
+                    "il alourdit la réponse de quelques dizaines de kilo-octets.")
 
 
 class EnregistrementIn(BaseModel):

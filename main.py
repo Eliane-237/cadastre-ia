@@ -1,16 +1,22 @@
 """Point d'entrée de l'API.
 
-    uvicorn main:app --reload
     python main.py
+    uvicorn main:app --reload --port 8800
 
-La documentation interactive est sur /docs.
+La documentation interactive est sur http://127.0.0.1:8800/docs
+
 """
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI
 
 from app.api.routers import documents, health, parcels, review
+
+HOTE = os.getenv("CADASTRE_API_HOST", "127.0.0.1")
+PORT = int(os.getenv("CADASTRE_API_PORT", "8800"))
 
 app = FastAPI(
     title="cadastre-ia",
@@ -34,4 +40,5 @@ for routeur in (health.router, documents.router, parcels.router, review.router):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    print(f"documentation : http://{HOTE}:{PORT}/docs")
+    uvicorn.run("main:app", host=HOTE, port=PORT, reload=True)

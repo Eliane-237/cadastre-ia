@@ -24,7 +24,10 @@ from app.core.schema import (  # noqa: E402
     Extracted,
     Extraction,
 )
+from app.geospatial.export import to_geojson  # noqa: E402
 from app.geospatial.parcel import GeometryRefusee, Parcel, parcel  # noqa: E402
+from app.geospatial.render import RenduIndisponible, apercu_png  # noqa: E402
+from app.geospatial.render import libelles_imprimes as etiquettes  # noqa: E402
 
 
 def _depuis_annotation(donnees: dict) -> Extraction:
@@ -77,103 +80,25 @@ def montre(p: Parcel) -> None:
 
 
 def geojson(parcelles: list[Parcel], chemin: Path) -> None:
-    """Écrit les parcelles, reprojetées en WGS84 si `pyproj` est là."""
-    try:
-        from pyproj import Transformer
-
-        vers_wgs84 = Transformer.from_crs(parcelles[0].crs, "EPSG:4326", always_xy=True)
-        projete = vers_wgs84.transform
-        note = ("Reprojection UTM 28N → WGS84 sans transformation de datum : "
-                "l'écart RRS04/WGS84 est de l'ordre du mètre, suffisant pour regarder, "
-                "pas pour mesurer.")
-    except ImportError:
-        projete = None
-        note = (f"Coordonnées laissées en {parcelles[0].crs} : pyproj n'est pas installé. "
-                "QGIS les lira ; geojson.io attend du WGS84.")
-
-    traits = []
-    for p in parcelles:
-        anneau = [(projete(x, y) if projete else (x, y))
-                  for x, y in p.polygon.exterior.coords]
-        traits.append({
-            "type": "Feature",
-            "properties": {
-                "document": p.document_id,
-                "titre": p.title_number,
-                "titre_mere": p.mother_title,
-                "aire_m2": round(p.area_m2, 2),
-                "aire_imprimee_m2": p.printed_m2,
-                "datum": p.datum,
-            },
-            "geometry": {"type": "Polygon", "coordinates": [[list(c) for c in anneau]]},
-        })
-
-    sortie = {"type": "FeatureCollection", "note": note, "features": traits}
-    if projete is None:
-        sortie["crs"] = {"type": "name",
-                         "properties": {"name": parcelles[0].crs}}   # lu par QGIS
+    """Écrit la FeatureCollection produite par `app.geospatial.export`."""
+    sortie = to_geojson(parcelles)
     chemin.write_text(json.dumps(sortie, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n{chemin} — {len(traits)} parcelle(s)")
-    print(f"  {note}")
-
-
-def etiquettes(extraction: Extraction) -> dict[tuple[float, float], str]:
-    """Position d'un sommet -> son libelle imprime (B1, B2...).
-
-    `parcel()` reordonne les sommets pour que deux parcelles soient comparables : le
-    premier point du polygone n'est pas le premier du tableau. Pour comparer le trace au
-    plan du document, il faut les libelles du papier, pas l'ordre canonique.
-    """
-    return {(p.x.value, p.y.value): p.label
-            for p in extraction.points if p.complete}
+    print(f"\n{chemin} — {len(sortie['features'])} parcelle(s)")
+    print(f"  {sortie['note']}")
 
 
 def dessine(parcelles: list[Parcel], dossier: Path,
             libelles: dict[str, dict[tuple[float, float], str]] | None = None) -> None:
-    """Un PNG par parcelle : la forme, ses sommets numerotes, son echelle.
-
-    C'est le controle que l'oeil fait mieux que n'importe quel seuil : si la forme tracee
-    ne ressemble pas au plan imprime sur le document, les coordonnees sont fausses, meme
-    quand l'aire tombe juste. Le nord est en haut, l'est a droite, et les proportions sont
-    respectees — un polygone etire par l'affichage ne se compare a rien.
-    """
-    try:
-        import matplotlib
-    except ImportError:
-        print("  matplotlib n'est pas installé dans cet environnement.\n"
-              "  Installe-le : python -m pip install matplotlib\n"
-              "  Le reste de l'outil fonctionne sans lui (--geojson, affichage texte).")
-        return
-    matplotlib.use("Agg")                     # aucun affichage : on ecrit des fichiers
-    import matplotlib.pyplot as plt
-
+    """Un PNG par parcelle, dessiné par `app.geospatial.render`."""
     dossier.mkdir(parents=True, exist_ok=True)
     for p in parcelles:
-        sommets = list(p.polygon.exterior.coords)
-        xs, ys = zip(*sommets, strict=False)
-        fig, ax = plt.subplots(figsize=(7, 7))
-        ax.plot(xs, ys, "-", linewidth=1.6, color="#1a4d7a")
-        ax.fill(xs, ys, alpha=0.10, color="#1a4d7a")
-        ax.plot(xs[:-1], ys[:-1], "o", markersize=4, color="#1a4d7a")
-        noms = (libelles or {}).get(p.document_id, {})
-        for i, (x, y) in enumerate(sommets[:-1], 1):
-            ax.annotate(noms.get((x, y), str(i)), (x, y),
-                        textcoords="offset points", xytext=(5, 5), fontsize=8)
-
-        ecart = ""
-        if p.printed_m2:
-            pct = abs(p.area_m2 - p.printed_m2) / p.printed_m2 * 100
-            ecart = f" — imprimee {p.printed_m2:.0f} m² (ecart {pct:.2f} %)"
-        ax.set_title(f"{p.title_number or p.document_id}\n{p.area_m2:.0f} m²{ecart}", fontsize=10)
-        ax.set_xlabel("Est (m)")
-        ax.set_ylabel("Nord (m)")
-        ax.set_aspect("equal")                # sans cela, la forme est deformee
-        ax.grid(True, linewidth=0.3, alpha=0.5)
-        ax.ticklabel_format(style="plain", useOffset=False)
-        fig.tight_layout()
+        try:
+            octets = apercu_png(p, (libelles or {}).get(p.document_id, {}))
+        except RenduIndisponible as exc:
+            print(f"  {exc}")
+            return
         chemin = dossier / f"{p.document_id.replace('/', '_')}.png"
-        fig.savefig(chemin, dpi=150)
-        plt.close(fig)
+        chemin.write_bytes(octets)
         print(f"  {chemin}")
 
 

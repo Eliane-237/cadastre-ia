@@ -15,7 +15,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from model.config import SETTINGS
+from app.core.config import SETTINGS
 
 T = TypeVar("T")
 

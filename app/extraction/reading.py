@@ -14,7 +14,7 @@ from typing import Any, Protocol
 import numpy as np
 from pydantic import BaseModel
 
-from model.schema import Area, BBox, Source, TEXT_FIELDS
+from app.core.schema import Area, BBox, Source, TEXT_FIELDS
 
 FIELDS = (*TEXT_FIELDS, "area")
 

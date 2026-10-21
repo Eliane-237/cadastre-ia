@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 
 from model.digit_repair import find_repair, shoelace
-from model.normalize import parse_area
+from app.core.normalize import parse_area
 from model.validate import unreliable_sides
 
 READINGS = Path("reports/readings")

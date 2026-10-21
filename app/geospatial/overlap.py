@@ -22,8 +22,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from model.config import SETTINGS, Settings
-from model.geometry import Parcel
+from app.core.config import SETTINGS, Settings
+from app.geospatial.parcel import Parcel
 
 
 class Verdict(str, Enum):

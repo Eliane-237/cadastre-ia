@@ -1,6 +1,6 @@
 import pytest
 
-from model.schema import (
+from app.core.schema import (
     DATUM_INCONNU,
     DATUM_RRS04,
     Area,
@@ -344,7 +344,7 @@ def test_niveau_le_plus_precis_retenu():
 
 
 def _titres(titre, mere):
-    from model.schema import Extracted
+    from app.core.schema import Extracted
 
     return Extraction(
         document_id="D",
@@ -374,7 +374,7 @@ def test_titre_egal_mere(titre, mere, signale):
 
 
 def test_titre_egal_mere_envoie_en_revue_sans_bloquer_la_geometrie():
-    from model.schema import Severity
+    from app.core.schema import Severity
     from model.validate import _check_titre_mere
 
     ex = _titres("1738/DK", "1738/DK")

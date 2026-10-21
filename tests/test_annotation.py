@@ -68,7 +68,7 @@ def test_chemin_invalide_message_clair(tmp_path: Path):
         convert(tmp_path, tmp_path / "ann")   # un dossier au lieu d'un .xlsx
 
 def test_annotation_couvre_les_champs_du_schema():
-    from model.schema import TEXT_FIELDS
+    from app.core.schema import TEXT_FIELDS
     manquants = [f for f in TEXT_FIELDS if f not in Annotation.model_fields]
     assert not manquants, f"champs absents de l'annotation : {manquants}"
 

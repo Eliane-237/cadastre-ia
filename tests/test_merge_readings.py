@@ -1,9 +1,9 @@
 import pytest
 
-from model.config import Settings
+from app.core.config import Settings
 from model.merge_readings import fuse
 from model.reading import FieldReading
-from model.schema import Source
+from app.core.schema import Source
 from model.validate import validate
 from tests.fake_readers import AREA_M2, COORDS, SIDES, reading
 

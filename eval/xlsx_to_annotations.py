@@ -12,7 +12,7 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 from model.annotation import AnnotatedPoint, Annotation, save_annotation
-from model.schema import Area
+from app.core.schema import Area
 
 ABSENT = {"", "(vide)", "non visible", "non lisible", "non mentionné"}
 

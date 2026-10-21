@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from model.procrustes import RecalageImpossible, concordent, superpose
+from app.geospatial.procrustes import RecalageImpossible, concordent, superpose
 
 ANNOTATIONS = Path("data/annotations")
 pytestmark = pytest.mark.skipif(not ANNOTATIONS.exists(), reason="corpus annoté absent")

@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from model.annotation import Annotation
-from model.schema import TEXT_FIELDS, Extracted, Extraction
+from app.core.schema import TEXT_FIELDS, Extracted, Extraction
 
 
 class Outcome(str, Enum):

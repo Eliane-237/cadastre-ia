@@ -31,11 +31,11 @@ from eval.metrics import (
     threshold_for,
 )
 from model.annotation import load_all
-from model.config import Settings, from_env
+from app.core.config import Settings, from_env
 from model.extract import run
 from model.merge_readings import fuse
 from model.reading import DocumentReading, reading_from_dict, reading_to_dict
-from model.schema import Extraction, Source
+from app.core.schema import Extraction, Source
 from model.validate import validate
 
 

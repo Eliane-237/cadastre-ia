@@ -22,7 +22,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from model.config import from_env                                  # noqa: E402
+from app.core.config import from_env                                  # noqa: E402
 from model.preprocess import load_pages, preprocess                # noqa: E402
 from tools.table_by_content import candidates                      # noqa: E402
 

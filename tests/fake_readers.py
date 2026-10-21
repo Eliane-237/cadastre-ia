@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 
 from model.reading import DocumentReading, FieldReading, PointReading, SideReading
-from model.schema import Source
-from model.validate import shoelace_area
+from app.core.schema import Source
+from app.geospatial.measures import shoelace_area
 
 # Pentagone réaliste, coordonnées imprimées avec 2 décimales (Kaolack, UTM 28N).
 # La commune et le numéro de titre s'accordent à ces coordonnées : le contrôle de

@@ -15,7 +15,7 @@ une parcelle doit se trouver près de la commune qu'elle déclare.
 
 from __future__ import annotations
 
-from model.normalize import canonical_text
+from app.core.normalize import canonical_text
 
 # Nom canonique -> (Est, Nord) en EPSG:32628. Source : GeoNames (geonamescache).
 LOCALITES: dict[str, tuple[float, float]] = {

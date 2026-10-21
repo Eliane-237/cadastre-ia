@@ -18,6 +18,8 @@ reports/*.geojson
 reports/preprocess_check/
 # Tracés des parcelles : la forme et la position de terrains réels
 reports/parcelles/
+reports/parcelles_extraction/
+reports/confrontations/
 data/synth/
 
 # Poids des modèles (GGUF, plusieurs Go)

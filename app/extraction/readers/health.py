@@ -9,7 +9,7 @@ import sys
 
 import httpx
 
-from model.config import Settings, from_env
+from app.core.config import Settings, from_env
 
 
 def check(name: str, url: str, client: httpx.Client) -> bool:

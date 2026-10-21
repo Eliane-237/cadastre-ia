@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from model.schema import (
+from app.core.schema import (
     Area,
     BBox,
     BoundaryPoint,

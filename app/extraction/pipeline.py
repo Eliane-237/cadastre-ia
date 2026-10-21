@@ -17,12 +17,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from model.area_locator import best_region as aire_best_region
-from model.config import SETTINGS, Settings
+from app.core.config import SETTINGS, Settings
 from model.merge_readings import fuse
 from model.preprocess import apply_orientation, file_sha256, load_pages, preprocess
 from model.table_locator import best_region, crop_region
 from model.reading import DocumentReading, Reader, merge_pages
-from model.schema import Extraction, Issue, Severity
+from app.core.schema import Extraction, Issue, Severity
 from model.validate import datum_for, validate
 
 

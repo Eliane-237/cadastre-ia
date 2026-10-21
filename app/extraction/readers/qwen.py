@@ -16,11 +16,11 @@ from typing import Any
 
 import numpy as np
 
-from model.config import QwenSettings
+from app.core.config import QwenSettings
 from model.preprocess import encode_png, limit_size
 from model.qwen_prompt import SYSTEM_PROMPT, USER_PROMPT, QwenOutput, json_schema
 from model.reading import DocumentReading, FieldReading, PointReading, SideReading
-from model.schema import Area, Source, TEXT_FIELDS
+from app.core.schema import Area, Source, TEXT_FIELDS
 from model.token_confidence import Path, value_confidences
 
 

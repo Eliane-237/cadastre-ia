@@ -17,8 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from model.geometry import GeometryRefusee, Parcel, parcel                 # noqa: E402
-from model.schema import (                                                 # noqa: E402
+from app.geospatial.parcel import GeometryRefusee, Parcel, parcel                 # noqa: E402
+from app.core.schema import (                                                 # noqa: E402
     DATUM_RRS04,
     Area,
     BoundaryPoint,

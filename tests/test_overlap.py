@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 from shapely.affinity import translate
 
-from model.geometry import Parcel, parcel
-from model.overlap import NonComparable, Verdict, compare, scan
-from model.schema import (
+from app.geospatial.parcel import Parcel, parcel
+from app.geospatial.overlap import NonComparable, Verdict, compare, scan
+from app.core.schema import (
     DATUM_INCONNU,
     DATUM_RRS04,
     Area,

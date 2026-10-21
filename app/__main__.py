@@ -12,10 +12,10 @@ import json
 import sys
 from pathlib import Path
 
-from model.config import from_env
+from app.core.config import from_env
 from model.extract import run
 from model.reading import reading_to_dict
-from model.schema import Severity
+from app.core.schema import Severity
 
 _ICON = {Severity.ERROR: "✗", Severity.WARNING: "!", Severity.INFO: "i"}
 

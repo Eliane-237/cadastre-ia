@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from shapely.geometry import Polygon
 from shapely.geometry.polygon import orient
 
-from model.schema import DATUM_INCONNU, UTM_28N, Extraction, Severity
+from app.core.schema import DATUM_INCONNU, UTM_28N, Extraction, Severity
 
 MIN_POINTS = 3
 

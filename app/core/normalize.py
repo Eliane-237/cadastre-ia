@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
-from model.schema import Area
+from app.core.schema import Area
 
 # Confusions lettre/chiffre fréquentes dans les zones numériques.
 _DIGIT_CONFUSIONS = str.maketrans({"O": "0", "o": "0", "D": "0", "l": "1", "I": "1", "|": "1"})

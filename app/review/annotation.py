@@ -21,7 +21,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from model.schema import TEXT_FIELDS, Area
+from app.core.schema import TEXT_FIELDS, Area
 
 _COORD = re.compile(r"^\d{5,8}\.\d{1,3}$")
 ANNOTATION_VERSION = "2.0"

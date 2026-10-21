@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from model.schema import TEXT_FIELDS                                       # noqa: E402
+from app.core.schema import TEXT_FIELDS                                       # noqa: E402
 
 # Les lecteurs nomment la superficie « area », le schema « printed_area ».
 CHAMPS = (*TEXT_FIELDS, "printed_area")

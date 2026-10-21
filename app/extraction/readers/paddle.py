@@ -14,11 +14,11 @@ from typing import Any
 
 import numpy as np
 
-from model.config import PaddleSettings
+from app.core.config import PaddleSettings
 from model.coordinate_table import best_coordinate_table, points_from_text
-from model.normalize import fix_digits, parse_area
+from app.core.normalize import fix_digits, parse_area
 from model.reading import DocumentReading, FieldReading, PointReading
-from model.schema import BBox, Source
+from app.core.schema import BBox, Source
 
 MODEL_ID = "PaddlePaddle/PaddleOCR-VL-1.6"
 

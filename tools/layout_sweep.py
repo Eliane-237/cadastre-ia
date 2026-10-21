@@ -15,16 +15,29 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from model.config import from_env                      # noqa: E402
+from app.core.config import from_env                      # noqa: E402
+from model.paddle_reader import reading_from_result    # noqa: E402
 from model.preprocess import load_pages, preprocess    # noqa: E402
 
 _TAGS = re.compile(r"<[^>]+>")
 
 # (nom, options de prétraitement, surcharges de mise en page).
-# La configuration de mise en page est celle retenue ; seul le redressement varie.
+#
+# Pourquoi ces variantes-là. Sur plusieurs documents, la mise en page ne rend qu'un seul
+# bloc — un « seal » sur 54987580 — alors que la page entière est lisible. Le suspect
+# principal est `layout_merge_bboxes_mode="small"` : quand deux boîtes se recouvrent, ce
+# mode garde la petite. Or le cadre du plan recouvre à peu près tout, et le cachet est la
+# plus petite boîte de la feuille. On balaye donc les modes de fusion avant de toucher au
+# reste. Le dernier essai sonde un seuil de détection : si le pipeline ne l'accepte pas,
+# la variante échoue proprement et on le saura.
 VARIANTS: list[tuple[str, dict, dict]] = [
-    ("référence (sans redressement)", {}, {}),
-    ("deskew=True", {"deskew": True}, {}),
+    ("référence (config actuelle)", {}, {}),
+    ("fusion = large", {}, {"layout_merge_bboxes_mode": "large"}),
+    ("fusion = union", {}, {"layout_merge_bboxes_mode": "union"}),
+    ("merge_layout_blocks = True", {}, {"merge_layout_blocks": True}),
+    ("dépliage UVDoc", {}, {"use_doc_unwarping": True}),
+    ("deskew = True", {"deskew": True}, {}),
+    ("seuil de détection 0.3", {}, {"layout_threshold": 0.3}),
 ]
 
 
@@ -50,8 +63,7 @@ def run(image, cfg, overrides: dict):
         kwargs["device"] = s.device
     kwargs.update(overrides)
     (res,) = list(PaddleOCRVL(**kwargs).predict(image))[:1]
-    data = res.json.get("res", res.json)
-    return data.get("parsing_res_list") or []
+    return res.json.get("res", res.json)
 
 
 def main() -> int:
@@ -62,6 +74,7 @@ def main() -> int:
 
     cfg = from_env()
     page = load_pages(args.document)[0]
+    recap: list[tuple[str, str]] = []
 
     for name, pre_opts, overrides in VARIANTS:
         print("\n" + "=" * 110)
@@ -70,13 +83,22 @@ def main() -> int:
         try:
             image, steps = preprocess(page, **pre_opts)
             print(f"prétraitement : {steps}")
-            blocks = run(image, cfg, overrides)
+            data = run(image, cfg, overrides)
+            blocks = data.get("parsing_res_list") or []
         except Exception as exc:
             print(f"ÉCHEC : {type(exc).__name__}: {exc}")
+            recap.append((name, f"ÉCHEC {type(exc).__name__}"))
             continue
 
         tables = [b for b in blocks if b.get("block_label") == "table"]
-        print(f"{len(blocks)} bloc(s), dont {len(tables)} table(s)\n")
+        # Le vrai juge : ce que le lecteur tire de cette mise en page.
+        lecture = reading_from_result(data)
+        champs = sum(1 for v in lecture.fields.values() if v.raw)
+        complets = sum(1 for p in lecture.points if p.x and p.y)
+        print(f"{len(blocks)} bloc(s), dont {len(tables)} table(s) — "
+              f"{champs} champ(s) lu(s), {complets} sommet(s) complet(s)\n")
+        recap.append((name, f"{len(blocks):>3} blocs  {len(tables):>2} tables  "
+                            f"{champs:>2} champs  {complets:>2} sommets"))
 
         # Le tableau de bornes est le juge de paix : on l'affiche en entier.
         for t in tables:
@@ -91,6 +113,12 @@ def main() -> int:
         else:
             labels = [b.get("block_label") for b in blocks]
             print("  labels :", ", ".join(labels))
+
+    print("\n" + "=" * 110)
+    print(f"RÉCAPITULATIF — {args.document.name}")
+    print("=" * 110)
+    for name, resultat in recap:
+        print(f"  {name:<32} {resultat}")
     return 0
 
 

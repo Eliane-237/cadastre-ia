@@ -7,12 +7,12 @@ import types
 import numpy as np
 
 from eval import evaluate
-from model.config import PaddleSettings, from_env
+from app.core.config import PaddleSettings, from_env
 from model.extract import run
 from model.paddle_reader import PaddleVLReader
 from model.preprocess import apply_orientation
 from model.qwen_prompt import json_schema
-from model.schema import Source
+from app.core.schema import Source
 from tests.fake_readers import FakeReader, reading
 from tests.test_extract import scan  # noqa: F401 - fixture
 
@@ -83,7 +83,7 @@ def test_le_tableau_est_relu_a_part(scan):  # noqa: F811
 def test_relecture_du_tableau_desactivable(scan):  # noqa: F811
     import dataclasses
 
-    from model.config import SETTINGS
+    from app.core.config import SETTINGS
 
     q = FakeReader(reading(Source.QWEN_VL))
     cfg = dataclasses.replace(SETTINGS, table_rescan=False)
@@ -132,7 +132,7 @@ def test_verification_des_serveurs(capsys):
     import httpx
 
     from model import check_servers
-    from model.config import Settings
+    from app.core.config import Settings
 
     def handler(request):
         return httpx.Response(200 if request.url.port == 8080 else 503)

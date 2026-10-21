@@ -4,7 +4,7 @@ from eval.metrics import (
     FieldResult, Outcome, calibration_table, compare, levenshtein, summarize, threshold_for,
 )
 from model.annotation import AnnotatedPoint, Annotation
-from model.schema import Area, BoundaryPoint, Extracted, Extraction
+from app.core.schema import Area, BoundaryPoint, Extracted, Extraction
 
 
 def pt(i, x, y, cx=0.9, cy=0.9):

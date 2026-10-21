@@ -6,7 +6,7 @@ import pytest
 
 from model.__main__ import main as cli
 from model.extract import run
-from model.schema import Extraction, Source
+from app.core.schema import Extraction, Source
 from tests.fake_readers import AREA_M2, COORDS, FakeReader, area_text, reading
 
 
@@ -196,19 +196,19 @@ def test_le_datum_est_renseigne_depuis_le_systeme_imprime(scan):
     `validated()` posait le datum, mais la chaine appelait `validate()` : toute extraction
     reelle sortait en « inconnu » et aucune parcelle n'etait confrontable.
     """
-    from model.schema import DATUM_RRS04
+    from app.core.schema import DATUM_RRS04
 
     ex = run(scan,
              paddle=FakeReader(_avec_systeme(Source.PADDLE_VL, "RSS 04")),
              qwen=FakeReader(_avec_systeme(Source.QWEN_VL, "RSS 04"))).extraction
     assert ex.datum == DATUM_RRS04
 
-    from model.geometry import parcel
+    from app.geospatial.parcel import parcel
     assert parcel(ex).comparable
 
 
 def test_un_systeme_non_reconnu_laisse_le_datum_inconnu(scan):
-    from model.schema import DATUM_INCONNU
+    from app.core.schema import DATUM_INCONNU
 
     ex = run(scan,
              paddle=FakeReader(_avec_systeme(Source.PADDLE_VL, "RGS24")),
@@ -218,7 +218,7 @@ def test_un_systeme_non_reconnu_laisse_le_datum_inconnu(scan):
 
 
 def test_sans_systeme_imprime_le_datum_reste_inconnu(scan):
-    from model.schema import DATUM_INCONNU
+    from app.core.schema import DATUM_INCONNU
 
     ex = run(scan,
              paddle=FakeReader(_avec_systeme(Source.PADDLE_VL, None)),

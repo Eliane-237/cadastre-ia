@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
 
-from model.normalize import canonical_coordinate, canonical_length, fix_digits, integer_digits
+from app.core.normalize import canonical_coordinate, canonical_length, fix_digits, integer_digits
 from model.reading import PointReading, SideReading
 
 _LABEL = re.compile(r"^[A-Za-z]{0,3}\s?[-.]?\s?\d{1,3}[A-Za-z]?$")

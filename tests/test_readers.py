@@ -5,11 +5,11 @@ import httpx
 import numpy as np
 import pytest
 
-from model.config import QwenSettings
+from app.core.config import QwenSettings
 from model.paddle_reader import reading_from_result
 from model.qwen_prompt import QwenOutput, json_schema
 from model.qwen_reader import QwenVLReader, extract_json, reading_from_output
-from model.schema import Area, Source
+from app.core.schema import Area, Source
 from model.token_confidence import value_confidences, value_spans
 
 PADDLE_RESULT = {
@@ -207,7 +207,7 @@ def test_le_prompt_exige_null_sur_une_valeur_masquee():
 def test_le_schema_impose_reste_complet():
     """Retirer des exemples du prompt ne doit pas retirer de champs."""
     from model.qwen_prompt import json_schema
-    from model.schema import TEXT_FIELDS
+    from app.core.schema import TEXT_FIELDS
 
     props = json_schema()["properties"]
     manquants = [f for f in TEXT_FIELDS if f not in props]

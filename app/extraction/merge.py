@@ -22,8 +22,8 @@ from itertools import combinations
 
 from shapely.geometry import Polygon
 
-from model.config import SETTINGS, Settings
-from model.normalize import (
+from app.core.config import SETTINGS, Settings
+from app.core.normalize import (
     canonical_coordinate,
     canonical_label,
     canonical_length,
@@ -33,7 +33,8 @@ from model.normalize import (
     parse_area,
 )
 from model.reading import DocumentReading, FieldReading, PointReading, SideReading
-from model.schema import (
+from app.core.schema import (
+    TEXT_FIELDS,
     Area,
     BoundaryPoint,
     Extracted,
@@ -43,8 +44,7 @@ from model.schema import (
     Severity,
     Source,
 )
-from model.validate import shoelace_area, side_length
-from model.schema import TEXT_FIELDS
+from app.geospatial.measures import shoelace_area, side_length
 
 # Lecteur dont la valeur est gardée par défaut en cas de désaccord non tranché.
 TABLE_READER = Source.PADDLE_VL

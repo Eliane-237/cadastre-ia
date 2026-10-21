@@ -13,10 +13,12 @@ from collections import Counter
 
 from shapely.geometry import Polygon
 
-from model.config import SETTINGS, Settings
+from app.geospatial.measures import Coord, shoelace_area, side_length
+
+from app.core.config import SETTINGS, Settings
 from model.localites import distance_m
-from model.normalize import canonical_label
-from model.schema import (
+from app.core.normalize import canonical_label
+from app.core.schema import (
     DATUM_INCONNU,
     DATUM_RRS04,
     BoundaryPoint,
@@ -24,23 +26,6 @@ from model.schema import (
     Issue,
     Severity,
 )
-
-Coord = tuple[float, float]
-
-
-def shoelace_area(coords: list[Coord]) -> float:
-    """Superficie par la formule de Gauss. Coordonnées recentrées sur le premier point pour
-    éviter la perte de précision (les valeurs UTM font ~1e6 et leurs produits ~1e12)."""
-    x0, y0 = coords[0]
-    pts = [(x - x0, y - y0) for x, y in coords]
-    s = sum(pts[i][0] * pts[(i + 1) % len(pts)][1] - pts[(i + 1) % len(pts)][0] * pts[i][1]
-            for i in range(len(pts)))
-    return abs(s) / 2
-
-
-def side_length(a: Coord, b: Coord) -> float:
-    return math.hypot(b[0] - a[0], b[1] - a[1])
-
 
 def _coords(points: list[BoundaryPoint]) -> list[Coord]:
     return [(p.x.value, p.y.value) for p in points]  # type: ignore[misc]  # complétude vérifiée avant

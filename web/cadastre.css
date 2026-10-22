@@ -1,0 +1,278 @@
+/* cadastre-ia — feuille de style commune.
+   Le vocabulaire visuel vient du plan de bornage : papier à dessin, traits fins,
+   tableau réglé, cachet rouge. On ne marque que ce qui demande attention. */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+:root {
+  --papier:      #f2f4f3;   /* papier à dessin, légèrement vert-gris */
+  --surface:     #ffffff;
+  --encre:       #1f2328;   /* l'encre sur le papier n'est jamais tout à fait noire */
+  --encre-pale:  #5c666e;
+  --trait:       #d4dad7;
+  --trait-fort:  #9aa5a0;
+  --bleu:        #1a4d7a;   /* la couleur du tracé des parcelles, reprise ici */
+  --bleu-pale:   #eaf0f6;
+  --ocre:        #8a6400;   /* confiance insuffisante */
+  --ocre-pale:   #fbf3e0;
+  --cachet:      #a8201a;   /* le rouge du cachet : conflits et refus, rien d'autre */
+  --cachet-pale: #fbeceb;
+
+  --pas: 8px;
+  --mesure: 68ch;
+  --rayon: 2px;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--papier);
+  color: var(--encre);
+  font: 400 16px/1.5 'IBM Plex Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-weight: 600; margin: 0; line-height: 1.25; }
+h1 { font-size: 1.25rem; letter-spacing: -0.01em; }
+h2 { font-size: 1rem; }
+h3 { font-size: 0.875rem; color: var(--encre-pale); font-weight: 500; }
+p  { margin: 0 0 calc(var(--pas) * 1.5); max-width: var(--mesure); }
+a  { color: var(--bleu); }
+
+.nombre, input.nombre, td.nombre {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- en-tête */
+
+.barre {
+  display: flex; align-items: baseline; gap: calc(var(--pas) * 3);
+  padding: calc(var(--pas) * 1.5) calc(var(--pas) * 3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--trait-fort);
+}
+.barre h1 { margin-right: auto; white-space: nowrap; }
+.barre h1 span { color: var(--encre-pale); font-weight: 400; }
+.barre nav { display: flex; gap: calc(var(--pas) * 2); }
+.barre nav a {
+  text-decoration: none; color: var(--encre-pale);
+  padding-bottom: 2px; border-bottom: 2px solid transparent;
+}
+.barre nav a[aria-current] { color: var(--encre); border-bottom-color: var(--bleu); }
+.barre nav a:hover { color: var(--encre); }
+
+.etat-lecteurs { font-size: 0.8125rem; color: var(--encre-pale); }
+.etat-lecteurs b { font-weight: 500; color: var(--encre); }
+.pastille {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--trait-fort); margin-right: 6px; vertical-align: 1px;
+}
+.pastille.oui { background: var(--bleu); }
+.pastille.non { background: var(--cachet); }
+
+/* ------------------------------------------------------------ disposition */
+
+.atelier {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1px; background: var(--trait-fort);
+  min-height: calc(100vh - 57px);
+}
+.volet { background: var(--papier); padding: calc(var(--pas) * 3); overflow: auto; }
+.titre-volet { font-size: 0.875rem; font-weight: 500; color: var(--encre-pale);
+               margin-bottom: calc(var(--pas) * 2); }
+.volet--fiche { background: var(--surface); }
+
+@media (max-width: 900px) {
+  .atelier { grid-template-columns: 1fr; }
+  .volet { min-height: auto; }
+}
+
+/* --------------------------------------------------- dépôt d'un document */
+
+/* Le cadre double est celui qui entoure un plan de bornage. */
+.depot {
+  border: 1px solid var(--trait-fort);
+  outline: 1px solid var(--trait-fort); outline-offset: 4px;
+  background: var(--surface);
+  padding: calc(var(--pas) * 6) calc(var(--pas) * 4);
+  text-align: center; cursor: pointer;
+  transition: background 120ms, outline-color 120ms;
+}
+.depot:hover, .depot:focus-visible { background: var(--bleu-pale); outline-color: var(--bleu); }
+.depot.survol { background: var(--bleu-pale); outline-color: var(--bleu); }
+.depot h2 { margin-bottom: var(--pas); }
+.depot p { color: var(--encre-pale); margin: 0 auto; max-width: 42ch; font-size: 0.9375rem; }
+.depot input[type=file] { display: none; }
+
+.depot.replie { padding: var(--pas) calc(var(--pas) * 2); text-align: left;
+                margin-bottom: calc(var(--pas) * 2); }
+.depot.replie h2 { font-size: 0.875rem; font-weight: 500; margin: 0; }
+.depot.replie p { display: none; }
+
+.piece { background: var(--surface); border: 1px solid var(--trait); padding: var(--pas); }
+.piece + .piece { margin-top: calc(var(--pas) * 2); }
+.piece img { display: block; width: 100%; height: auto; }
+.piece figcaption {
+  font-size: 0.8125rem; color: var(--encre-pale);
+  padding: var(--pas) 2px 2px; border-top: 1px solid var(--trait); margin-top: var(--pas);
+}
+
+/* ------------------------------------------------------------- l'attente */
+
+.attente { text-align: center; padding: calc(var(--pas) * 6) 0; color: var(--encre-pale); }
+.jauge {
+  height: 2px; background: var(--trait); margin: calc(var(--pas) * 2) auto 0;
+  max-width: 280px; overflow: hidden;
+}
+.jauge::after {
+  content: ''; display: block; height: 100%; width: 40%;
+  background: var(--bleu); animation: balayage 1.4s ease-in-out infinite;
+}
+@keyframes balayage { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+@media (prefers-reduced-motion: reduce) {
+  .jauge::after { animation: none; width: 100%; opacity: 0.4; }
+}
+
+/* -------------------------------------------------------------- verdict */
+
+.verdict {
+  border-left: 3px solid var(--trait-fort);
+  padding: calc(var(--pas) * 1.5) calc(var(--pas) * 2);
+  margin-bottom: calc(var(--pas) * 3);
+  background: var(--papier);
+}
+.verdict h2 { font-size: 0.9375rem; margin-bottom: 4px; }
+.verdict ul { margin: 0; padding-left: 1.1em; font-size: 0.875rem; color: var(--encre-pale); }
+.verdict li + li { margin-top: 2px; }
+.verdict--exploitable { border-left-color: var(--bleu); background: var(--bleu-pale); }
+.verdict--a_relire    { border-left-color: var(--ocre); background: var(--ocre-pale); }
+.verdict--refuse      { border-left-color: var(--cachet); background: var(--cachet-pale); }
+
+/* --------------------------------------------------------------- la fiche */
+
+.groupe { margin-bottom: calc(var(--pas) * 3); }
+.groupe > h3 {
+  padding-bottom: 4px; margin-bottom: var(--pas);
+  border-bottom: 1px solid var(--trait);
+}
+
+.champ { display: grid; grid-template-columns: 13ch 1fr auto; gap: var(--pas);
+         align-items: baseline; padding: 3px 0; }
+.champ > label { font-size: 0.875rem; color: var(--encre-pale); }
+.champ input {
+  font: inherit; color: inherit; width: 100%;
+  border: 0; border-bottom: 1px solid var(--trait);
+  background: transparent; padding: 3px 2px; border-radius: 0;
+}
+.champ input:hover { border-bottom-color: var(--trait-fort); }
+.champ input:focus { outline: 0; border-bottom-color: var(--bleu); box-shadow: 0 1px 0 var(--bleu); }
+.champ input::placeholder { color: var(--trait-fort); font-style: italic; }
+
+/* Confiance insuffisante : l'encre du champ change, pas un badge posé à côté.
+   Pas d'aplat de couleur — sur une fiche qui compte vingt champs, trois cases
+   teintées font du bruit là où un trait suffit. */
+.champ--doute input { border-bottom: 2px solid var(--ocre); }
+.champ--doute > label { color: var(--ocre); font-weight: 500; }
+
+.confiance { font-size: 0.75rem; color: var(--encre-pale); white-space: nowrap; }
+.champ--doute .confiance { color: var(--ocre); }
+
+.lectures {
+  grid-column: 2 / -1; font-size: 0.8125rem; color: var(--encre-pale);
+  margin: 2px 0 6px;
+}
+.lectures summary { cursor: pointer; }
+.lectures dl { margin: 4px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 2px var(--pas); }
+.lectures dt { color: var(--trait-fort); }
+.lectures dd { margin: 0; }
+
+/* ----------------------------------------------------- tableau de bornage */
+
+table.bornage { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+table.bornage th {
+  text-align: left; font-weight: 500; color: var(--encre-pale);
+  border-bottom: 1px solid var(--trait-fort); padding: 4px 6px;
+}
+table.bornage th:not(:first-child) { text-align: right; }
+table.bornage td { border-bottom: 1px solid var(--trait); padding: 3px 6px; }
+table.bornage td.nombre { text-align: right; }
+table.bornage tr.doute td { background: var(--ocre-pale); }
+table.bornage input {
+  font: inherit; color: inherit; text-align: right; border: 0; background: transparent;
+  border-bottom: 1px solid var(--trait); padding: 2px; border-radius: 0;
+}
+table.bornage input:hover { border-bottom-color: var(--trait-fort); }
+table.bornage input:focus { outline: 0; border-bottom-color: var(--bleu);
+                            box-shadow: 0 1px 0 var(--bleu); }
+
+/* -------------------------------------------------------------- commandes */
+
+.commandes {
+  display: flex; gap: var(--pas); flex-wrap: wrap;
+  padding-top: calc(var(--pas) * 2); border-top: 1px solid var(--trait);
+  position: sticky; bottom: 0; background: var(--surface);
+  margin-top: calc(var(--pas) * 3);
+}
+button {
+  font: 500 0.9375rem/1 'IBM Plex Sans', sans-serif;
+  padding: 11px 18px; border-radius: var(--rayon); cursor: pointer;
+  border: 1px solid var(--bleu); background: var(--bleu); color: #fff;
+}
+button.second { background: var(--surface); color: var(--bleu); }
+button:hover:not(:disabled) { filter: brightness(1.08); }
+button.second:hover:not(:disabled) { background: var(--bleu-pale); filter: none; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--encre); outline-offset: 2px; }
+
+.message { padding: var(--pas) calc(var(--pas) * 1.5); font-size: 0.875rem;
+           border-left: 3px solid var(--trait-fort); background: var(--papier);
+           margin-bottom: calc(var(--pas) * 2); }
+.message--erreur { border-left-color: var(--cachet); background: var(--cachet-pale); }
+.message--succes { border-left-color: var(--bleu); background: var(--bleu-pale); }
+
+.vide { color: var(--encre-pale); font-size: 0.9375rem; }
+.raison-bloquee { font-size: 0.8125rem; color: var(--encre-pale);
+                  align-self: center; margin: 0; max-width: 34ch; }
+.reference { font-size: 0.75rem; color: var(--trait-fort);
+             font-family: 'IBM Plex Mono', monospace; }
+
+/* ------------------------------------------------------------------ carte */
+
+.plan { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 1px;
+        background: var(--trait-fort); height: calc(100vh - 57px); }
+@media (max-width: 760px) { .plan { grid-template-columns: 1fr; grid-template-rows: auto 60vh; height: auto; } }
+
+.registre { background: var(--surface); overflow: auto; padding: calc(var(--pas) * 2); }
+.registre h2 { margin-bottom: var(--pas); }
+.registre .note { font-size: 0.8125rem; color: var(--encre-pale);
+                  border-top: 1px solid var(--trait); padding-top: var(--pas);
+                  margin-top: calc(var(--pas) * 2); }
+
+ul.parcelles { list-style: none; margin: var(--pas) 0 0; padding: 0; }
+ul.parcelles li { border-bottom: 1px solid var(--trait); }
+ul.parcelles button {
+  all: unset; display: block; width: 100%; cursor: pointer; box-sizing: border-box;
+  padding: var(--pas); border-left: 3px solid transparent;
+}
+ul.parcelles button:hover { background: var(--bleu-pale); }
+ul.parcelles button[aria-current] { border-left-color: var(--bleu); background: var(--bleu-pale); }
+ul.parcelles button:focus-visible { outline: 2px solid var(--encre); outline-offset: -2px; }
+ul.parcelles .titre { font-weight: 500; }
+ul.parcelles .detail { font-size: 0.8125rem; color: var(--encre-pale);
+                       font-family: 'IBM Plex Mono', monospace; }
+ul.parcelles .alerte { font-size: 0.8125rem; color: var(--cachet); }
+
+/* Le fond garde l'aspect du papier si les tuiles ne chargent pas. */
+#carte { background: var(--papier); height: 100%; }
+.leaflet-container { font: inherit; }
+
+.detail-parcelle { padding: calc(var(--pas) * 2); border-top: 1px solid var(--trait-fort);
+                   background: var(--papier); }
+.detail-parcelle dl { display: grid; grid-template-columns: auto 1fr;
+                      gap: 2px var(--pas); font-size: 0.875rem; margin: 0; }
+.detail-parcelle dt { color: var(--encre-pale); }
+.detail-parcelle dd { margin: 0; font-family: 'IBM Plex Mono', monospace; }
+.detail-parcelle img { width: 100%; border: 1px solid var(--trait);
+                       background: var(--surface); margin-top: var(--pas); }

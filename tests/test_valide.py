@@ -1,6 +1,6 @@
 import pytest
 
-from model.schema import (
+from app.core.schema import (
     DATUM_INCONNU,
     DATUM_RRS04,
     Area,
@@ -9,7 +9,7 @@ from model.schema import (
     Extraction,
     Severity,
 )
-from model.validate import (
+from app.validation.rules import (
     datum_for,
     shoelace_area,
     side_length,
@@ -34,7 +34,8 @@ def pt(i, x, y):
 def square(side=100.0, area=None, dx=0.0):
     pts = [pt(0, BASE_X, BASE_Y), pt(1, BASE_X + side + dx, BASE_Y),
            pt(2, BASE_X + side, BASE_Y + side), pt(3, BASE_X, BASE_Y + side)]
-    printed = Extracted[Area](value=Area(ca=int(area if area is not None else side * side)), confidence=0.9)
+    ca = int(area if area is not None else side * side)
+    printed = Extracted[Area](value=Area(ca=ca), confidence=0.9)
     return Extraction(document_id="D", points=pts, printed_area=printed)
 
 
@@ -78,7 +79,8 @@ def test_coordonnee_hors_plage_bloque_la_geometrie():
 
 def test_valeur_aberrante_dans_la_plage():
     e = square()
-    e.points[2] = pt(2, BASE_X + 50_000, BASE_Y + 100)   # plausible seule, absurde pour cette parcelle
+    # plausible seule, absurde pour cette parcelle
+    e.points[2] = pt(2, BASE_X + 50_000, BASE_Y + 100)
     assert "COORD_OUTLIER" in codes(validate(e))
 
 
@@ -96,7 +98,8 @@ def test_trop_peu_de_points():
 def test_polygone_croise():
     pts = [pt(0, BASE_X, BASE_Y), pt(1, BASE_X + 100, BASE_Y + 100),
            pt(2, BASE_X + 100, BASE_Y), pt(3, BASE_X, BASE_Y + 100)]   # papillon
-    e = Extraction(document_id="D", points=pts, printed_area=Extracted[Area](value=Area(ca=5000), confidence=0.9))
+    e = Extraction(document_id="D", points=pts,
+                   printed_area=Extracted[Area](value=Area(ca=5000), confidence=0.9))
     assert "POLYGON_INVALID" in codes(validate(e))
 
 
@@ -177,7 +180,8 @@ def test_cotes_imprimes_conserves(printed, printed_m2):
 # ------------------------------------------- etiquettes, doublons et datum
 
 def renomme(extraction, labels):
-    pts = [p.model_copy(update={"label": lab}) for p, lab in zip(extraction.points, labels)]
+    pts = [p.model_copy(update={"label": lab})
+           for p, lab in zip(extraction.points, labels, strict=False)]
     return extraction.model_copy(update={"points": pts})
 
 
@@ -262,3 +266,125 @@ def test_systeme_non_reconnu_signale():
     issues = validate(carre)
     assert "CRS_INCONNU" in codes(issues)
     assert validated(carre).datum == DATUM_INCONNU
+
+
+# ------------------------------------------------- regularite des colonnes
+
+def colonne(xs, ys):
+    pts = [BoundaryPoint(label=f"B{i+1}", row_index=i,
+                         x=Extracted[float](value=float(x), confidence=1.0, raw_text=x),
+                         y=Extracted[float](value=float(y), confidence=1.0, raw_text=y))
+           for i, (x, y) in enumerate(zip(xs, ys, strict=False))]
+    modifiee = square().model_copy(
+        update={"points": pts, "printed_area": Extracted[Area]()})
+    return codes(validate(modifiee))
+
+
+Y_KAOLACK = ["1564042.96", "1564034.94", "1564023.49", "1564031.51"]
+
+
+def test_coordonnee_amputee_de_son_prefixe():
+    # tf kaolack : « 38210.57 » au lieu de « 381210.57 ». Repere sans aucune geometrie,
+    # ce qui compte quand la superficie imprimee manque.
+    trouves = colonne(["38210.57", "381225.56", "381219.40", "381204.41"], Y_KAOLACK)
+    assert "COLUMN_LENGTH" in trouves
+    assert "COLUMN_PREFIX" in trouves
+
+
+def test_decimales_irregulieres():
+    # Grand Dakar : « 236867.4 » a une seule decimale la ou la colonne en a deux.
+    trouves = colonne(["236869.09", "236899.63", "236896.76", "236867.4"],
+                      ["1628753.88", "1628752.08", "1628724.89", "1628727.50"])
+    assert "COLUMN_DECIMALS" in trouves
+
+
+def test_colonne_reguliere_sans_bruit():
+    trouves = colonne(["381210.57", "381225.56", "381219.40", "381204.41"], Y_KAOLACK)
+    assert not {"COLUMN_LENGTH", "COLUMN_DECIMALS", "COLUMN_PREFIX"} & set(trouves)
+
+
+# ---------------------------------------------- coherence de la localite
+
+KAOLACK = [(381210.57, 1564042.96), (381225.56, 1564034.94),
+           (381236.10, 1564051.22), (381208.44, 1564060.13)]
+
+
+def parcelle_a(coords, **champs):
+    pts = [BoundaryPoint(label=f"B{i+1}", row_index=i, x=ex(x), y=ex(y))
+           for i, (x, y) in enumerate(coords)]
+    maj = {"points": pts, "printed_area": Extracted[Area]()}
+    maj.update({k: Extracted[str](value=v, confidence=0.9) for k, v in champs.items()})
+    return square().model_copy(update=maj)
+
+
+def test_parcelle_chez_elle():
+    assert "LOCALITE_INCOHERENTE" not in codes(validate(parcelle_a(KAOLACK, commune="Kaolack")))
+
+
+def test_parcelle_loin_de_sa_commune():
+    # Les coordonnees sont a Kaolack, le document annonce Dakar : 157 km.
+    issues = validate(parcelle_a(KAOLACK, commune="Dakar"))
+    assert "LOCALITE_INCOHERENTE" in codes(issues)
+    assert "Dakar" in next(i.message for i in issues if i.code == "LOCALITE_INCOHERENTE")
+
+
+def test_region_vaste_toleree():
+    # Une region est grande : Kaolack reste dans la region de Kaolack sans alerte,
+    # alors que le meme ecart a l'echelle d'une commune serait signale.
+    assert "LOCALITE_INCOHERENTE" not in codes(validate(parcelle_a(KAOLACK, region="Kaolack")))
+
+
+def test_localite_inconnue_ne_dit_rien():
+    # La base ne couvre que les localites principales : un nom inconnu n'accuse personne.
+    assert "LOCALITE_INCOHERENTE" not in codes(
+        validate(parcelle_a(KAOLACK, commune="Ngaparou")))
+
+
+def test_niveau_le_plus_precis_retenu():
+    # La commune est connue et fausse : on ne se rabat pas sur la region pour l'excuser.
+    assert "LOCALITE_INCOHERENTE" in codes(
+        validate(parcelle_a(KAOLACK, commune="Dakar", region="Kaolack")))
+
+
+# ------------------------------------------- un titre n'est pas son propre titre mere
+
+
+def _titres(titre, mere):
+    from app.core.schema import Extracted
+
+    return Extraction(
+        document_id="D",
+        title_number=Extracted[str](value=titre, confidence=0.9) if titre else Extracted[str](),
+        mother_title=Extracted[str](value=mere, confidence=0.9) if mere else Extracted[str](),
+    )
+
+
+@pytest.mark.parametrize(
+    "titre, mere, signale",
+    [
+        ("1738/DK", "1738/DK", True),                  # le cas reel de titre-foncier
+        ("1738/DK", "1738/DK (ex 3016/DG)", True),     # meme numero, ancien rappel en plus
+        ("TF 1738/DK", "1738/DK", True),               # le prefixe ne distingue pas
+        ("TF 1738/DK", "TM 1738/DK", True),
+        ("22 665/GR", "976/GR(ex 1 306/DG)", False),   # deux titres differents : rien a dire
+        ("6652/TH", "6652", False),                    # prudence : on ne signale pas un prefixe
+        (None, "1738/DK", False),                      # une seule case lue : rien a comparer
+        ("1738/DK", None, False),
+    ],
+)
+def test_titre_egal_mere(titre, mere, signale):
+    from app.validation.rules import _check_titre_mere
+
+    codes = [i.code for i in _check_titre_mere(_titres(titre, mere))]
+    assert ("TITRE_EGAL_MERE" in codes) is signale
+
+
+def test_titre_egal_mere_envoie_en_revue_sans_bloquer_la_geometrie():
+    from app.core.schema import Severity
+    from app.validation.rules import _check_titre_mere
+
+    ex = _titres("1738/DK", "1738/DK")
+    ex.issues = _check_titre_mere(ex)
+    assert ex.issues[0].severity is Severity.WARNING
+    assert not ex.has_error          # les coordonnees restent exploitables
+    assert ex.needs_review()         # mais un humain doit trancher

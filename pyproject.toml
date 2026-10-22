@@ -4,6 +4,22 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+# UP042 : `class X(str, Enum)` plutôt que `StrEnum`. Choix assumé et uniforme dans tout
+# le projet. `StrEnum` change ce que rend `str(X.A)` — « a » au lieu de « X.A » — et ces
+# énumérations sont sérialisées en JSON, stockées et relues : un changement de forme
+# silencieux casserait des fichiers déjà écrits. Le gain de lisibilité ne vaut pas ça.
+# UP017 : `datetime.UTC` plutôt que `timezone.utc`. Le second n'est pas déprécié et
+# marche depuis 3.2 ; le premier interdit de faire tourner la suite de tests sur un
+# interpréteur 3.10. Gain nul, coût réel.
+ignore = ["UP042", "UP017"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Idiomes FastAPI : ce ne sont pas des arguments par défaut mutables mais des
+# déclarations de dépendance, évaluées par le framework à chaque requête.
+extend-immutable-calls = [
+    "fastapi.Body", "fastapi.Depends", "fastapi.File", "fastapi.Form",
+    "fastapi.Header", "fastapi.Path", "fastapi.Query",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

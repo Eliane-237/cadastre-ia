@@ -11,8 +11,8 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from model.annotation import AnnotatedPoint, Annotation, save_annotation
-from model.schema import Area
+from app.core.schema import Area
+from app.review.annotation import AnnotatedPoint, Annotation, save_annotation
 
 ABSENT = {"", "(vide)", "non visible", "non lisible", "non mentionné"}
 
@@ -42,7 +42,8 @@ def convert(xlsx: Path, out_dir: Path, annotator: str = "claude-lecture-visuelle
         d = decimals.get(did)
         if d is None:
             raise ValueError(f"{did}: nombre de décimales inconnu, impossible de formater {label}")
-        points.setdefault(did, []).append(AnnotatedPoint(label=str(label), x=f"{x:.{d}f}", y=f"{y:.{d}f}"))
+        points.setdefault(did, []).append(
+            AnnotatedPoint(label=str(label), x=f"{x:.{d}f}", y=f"{y:.{d}f}"))
 
     written = []
     for did, row in docs.items():

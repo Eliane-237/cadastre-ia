@@ -4,8 +4,14 @@ import pytest
 from openpyxl import Workbook
 from pydantic import ValidationError
 
+from app.review.annotation import (
+    AnnotatedPoint,
+    Annotation,
+    NoValue,
+    load_all,
+    save_annotation,
+)
 from eval.xlsx_to_annotations import convert
-from model.annotation import AnnotatedPoint, Annotation, load_all, save_annotation
 
 
 def test_coordonnee_mal_formee_refusee():
@@ -62,6 +68,64 @@ def test_chemin_invalide_message_clair(tmp_path: Path):
         convert(tmp_path, tmp_path / "ann")   # un dossier au lieu d'un .xlsx
 
 def test_annotation_couvre_les_champs_du_schema():
-    from model.schema import TEXT_FIELDS
+    from app.core.schema import TEXT_FIELDS
     manquants = [f for f in TEXT_FIELDS if f not in Annotation.model_fields]
     assert not manquants, f"champs absents de l'annotation : {manquants}"
+
+def _une(**kw) -> Annotation:
+    return Annotation(document_id="D", image="a.png", **kw)
+
+
+def test_champ_declare_sans_valeur_nest_plus_un_oubli():
+    a = _une(no_value={"region": NoValue.ABSENT})
+    assert "region" not in a.not_annotated
+    assert "commune" in a.not_annotated        # ni rempli ni declare : un oubli
+
+
+def test_champ_rempli_nest_pas_un_oubli():
+    assert "commune" not in _une(commune="Kaolack").not_annotated
+
+
+def test_champ_inconnu_refuse():
+    with pytest.raises(ValidationError):
+        _une(no_value={"longueurs_cotes": NoValue.ABSENT})
+
+
+def test_raison_inconnue_refusee():
+    with pytest.raises(ValidationError):
+        _une(no_value={"region": "pas envie"})
+
+
+def test_contradiction_refusee():
+    # declarer sans valeur ce qu'on a soi-meme lu sur le document
+    with pytest.raises(ValidationError):
+        _une(commune="Kaolack", no_value={"commune": NoValue.ABSENT})
+
+
+def test_superficie_declarable():
+    assert "printed_area" not in _une(no_value={"printed_area": NoValue.ABSENT}).not_annotated
+
+
+def test_seul_absent_est_mesurable():
+    a = _une(
+        commune="Kaolack",
+        no_value={
+            "region": NoValue.ABSENT,
+            "title_number": NoValue.ILLISIBLE,
+            "nicad": NoValue.HORS_CADRAGE,
+            "arrondissement": NoValue.FUSIONNE,
+        },
+    )
+    mesurables = a.measurable_fields
+    assert "commune" in mesurables            # on sait quoi lire
+    assert "region" in mesurables             # on sait qu'il ne faut rien lire
+    for hors in ("title_number", "nicad", "arrondissement"):
+        assert hors not in mesurables         # la valeur existe, notre vue ne l'atteint pas
+    assert "owner" not in mesurables          # pas encore annote
+
+
+def test_no_value_survit_a_laller_retour(tmp_path: Path):
+    save_annotation(_une(no_value={"region": NoValue.ABSENT,
+                                   "scale": NoValue.HORS_CADRAGE}), tmp_path)
+    (b,) = load_all(tmp_path)
+    assert b.no_value == {"region": NoValue.ABSENT, "scale": NoValue.HORS_CADRAGE}

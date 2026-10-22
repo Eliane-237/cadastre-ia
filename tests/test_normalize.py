@@ -1,6 +1,6 @@
 import pytest
 
-from model.normalize import (
+from app.core.normalize import (
     canonical_coordinate,
     canonical_label,
     canonical_length,
@@ -10,7 +10,7 @@ from model.normalize import (
     canonical_title,
     parse_area,
 )
-from model.schema import Area
+from app.core.schema import Area
 
 
 @pytest.mark.parametrize(

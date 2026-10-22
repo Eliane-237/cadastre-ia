@@ -6,13 +6,13 @@ import types
 
 import numpy as np
 
+from app.core.config import PaddleSettings, from_env
+from app.core.schema import Source
+from app.document.preprocess import apply_orientation
+from app.extraction.pipeline import run
+from app.extraction.readers.paddle import PaddleVLReader
+from app.extraction.readers.prompt import json_schema
 from eval import evaluate
-from model.config import PaddleSettings, from_env
-from model.extract import run
-from model.paddle_reader import PaddleVLReader
-from model.preprocess import apply_orientation
-from model.qwen_prompt import json_schema
-from model.schema import Source
 from tests.fake_readers import FakeReader, reading
 from tests.test_extract import scan  # noqa: F401 - fixture
 
@@ -51,11 +51,48 @@ def test_meme_rotation_que_paddleocr():
 def test_seconde_passe_qwen_reprend_lorientation(scan):  # noqa: F811
     q = FakeReader(reading(Source.QWEN_VL))
     run(scan, paddle=None, qwen=q, use_paddle=False, orientation_deg=90)
-    assert q.seen == [(600, 800, 3)]  # page 800×600 tournée de 90°
+    assert q.seen[0] == (600, 800, 3)  # page 800×600 tournée de 90°
+
+
+def _paddle_qui_localise_le_tableau():
+    """Un lecteur Paddle dont la mise en page designe un bloc « table » avec sa boite.
+
+    On ne s'appuie pas sur le detecteur morphologique : il accroche ou non selon la
+    version d'OpenCV, et un test ne doit pas dependre de l'environnement.
+    """
+    lecture = reading(Source.PADDLE_VL)
+    lecture.raw_output = {
+        "parsing_res_list": [
+            {"block_label": "table", "block_bbox": [40.0, 120.0, 300.0, 260.0],
+             "block_content": ""},
+        ]
+    }
+    return FakeReader(lecture)
+
+
+def test_le_tableau_est_relu_a_part(scan):  # noqa: F811
+    """La page entiere est lue pour tous les champs, puis la seule region du tableau
+    est relue, recadree et agrandie. `merge_pages` retiendra le meilleur des deux."""
+    q = FakeReader(reading(Source.QWEN_VL))
+    run(scan, paddle=_paddle_qui_localise_le_tableau(), qwen=q)
+    assert len(q.seen) == 2, "la page, puis le fragment du tableau"
+    page, fragment = q.seen
+    assert fragment[:2] != page[:2], "le fragment n'est pas la page entiere"
+
+
+def test_relecture_du_tableau_desactivable(scan):  # noqa: F811
+    import dataclasses
+
+    from app.core.config import SETTINGS
+
+    q = FakeReader(reading(Source.QWEN_VL))
+    cfg = dataclasses.replace(SETTINGS, table_rescan=False)
+    run(scan, paddle=_paddle_qui_localise_le_tableau(), qwen=q, cfg=cfg)
+    assert len(q.seen) == 1, "seule la page est lue"
 
 
 def test_deux_passes_completent_les_lectures(tmp_path, monkeypatch):
-    from model.annotation import AnnotatedPoint, Annotation, save_annotation
+    from app.review.annotation import AnnotatedPoint, Annotation, save_annotation
 
     raw, ann, out = tmp_path / "raw", tmp_path / "ann", tmp_path / "rep"
     raw.mkdir()
@@ -94,8 +131,8 @@ def test_deux_passes_completent_les_lectures(tmp_path, monkeypatch):
 def test_verification_des_serveurs(capsys):
     import httpx
 
-    from model import check_servers
-    from model.config import Settings
+    from app.core.config import Settings
+    from app.extraction.readers import health as check_servers
 
     def handler(request):
         return httpx.Response(200 if request.url.port == 8080 else 503)

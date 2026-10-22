@@ -14,7 +14,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from model.preprocess import estimate_skew, load_image
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.document.loader import load_image  # noqa: E402
+from app.document.preprocess import estimate_skew
 
 EXTS = {".jpg", ".jpeg", ".png", ".webp", ".jfif", ".bmp", ".tif", ".tiff"}
 

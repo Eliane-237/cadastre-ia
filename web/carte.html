@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carte des parcelles — cadastre-ia</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="cadastre.css">
+</head>
+<body>
+
+<header class="barre">
+  <h1>cadastre<span>-ia</span></h1>
+  <nav>
+    <a href="index.html">Lecture</a>
+    <a href="carte.html" aria-current="page">Carte</a>
+  </nav>
+  <p class="etat-lecteurs" id="compte"></p>
+</header>
+
+<main class="plan">
+  <section class="registre" aria-labelledby="t-registre">
+    <h2 id="t-registre">Parcelles enregistrées</h2>
+    <p class="vide" id="registre-vide">La base est vide. Lisez un titre depuis la page
+      <a href="index.html">Lecture</a>, puis enregistrez-le.</p>
+    <ul class="parcelles" id="liste"></ul>
+    <div id="detail"></div>
+    <p class="note" id="note"></p>
+  </section>
+  <div id="carte"></div>
+</main>
+
+<!-- Leaflet est embarque : un bureau hors ligne doit garder sa carte. -->
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="carte.js"></script>
+</body>
+</html>

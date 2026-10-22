@@ -8,10 +8,21 @@ __pycache__/
 # Données sensibles : jamais versionnées
 data/raw/
 data/annotations/
+# Parcelles enregistrées et journal des décisions : données réelles
+data/parcelles/
+data/historique.jsonl
 *.xlsx
 # Lectures brutes et rapports sur données réelles : contiennent noms et coordonnées
 reports/readings/
 reports/evaluation.json
+# Géométries exportées : les coordonnées réelles des parcelles
+reports/*.geojson
+# Images de contrôle du prétraitement : ce sont les titres eux-mêmes
+reports/preprocess_check/
+# Tracés des parcelles : la forme et la position de terrains réels
+reports/parcelles/
+reports/parcelles_extraction/
+reports/confrontations/
 data/synth/
 
 # Poids des modèles (GGUF, plusieurs Go)

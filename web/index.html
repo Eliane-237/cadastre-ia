@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lecture d'un titre foncier — cadastre-ia</title>
+<link rel="stylesheet" href="cadastre.css">
+</head>
+<body>
+
+<header class="barre">
+  <h1>cadastre<span>-ia</span></h1>
+  <nav>
+    <a href="index.html" aria-current="page">Lecture</a>
+    <a href="carte.html">Carte</a>
+  </nav>
+  <p class="etat-lecteurs" id="etat-lecteurs"><span class="pastille"></span>lecteurs</p>
+</header>
+
+<main class="atelier">
+
+  <!-- Gauche : la pièce. Ce que l'agent a sous les yeux sur le papier. -->
+  <section class="volet" aria-labelledby="t-piece">
+    <h2 id="t-piece" class="titre-volet">La pièce</h2>
+
+    <div class="depot" id="depot" role="button" tabindex="0"
+         aria-label="Déposer un titre foncier">
+      <h2>Déposer un titre foncier</h2>
+      <p>Glissez le scan ou la photo ici, ou cliquez pour choisir un fichier.
+         JPEG, PNG, TIFF ou PDF.</p>
+      <input type="file" id="fichier" accept="image/*,application/pdf">
+    </div>
+
+    <figure class="piece" id="piece-source" hidden>
+      <img id="apercu-source" alt="Le document déposé">
+      <figcaption id="legende-source"></figcaption>
+    </figure>
+
+    <figure class="piece" id="piece-trace" hidden>
+      <img id="apercu-trace" alt="Le polygone reconstruit depuis le tableau de coordonnées">
+      <figcaption>Polygone reconstruit depuis le tableau de coordonnées lu.
+        Les sommets portent les libellés imprimés.</figcaption>
+    </figure>
+  </section>
+
+  <!-- Droite : la fiche. Ce qui entrera au registre, si l'agent le valide. -->
+  <section class="volet volet--fiche" aria-labelledby="t-fiche">
+    <h2 id="t-fiche" class="titre-volet">La fiche</h2>
+
+    <p class="vide" id="fiche-vide">Les champs se remplissent dès qu'un document est lu.
+      Rien n'est enregistré avant votre validation.</p>
+
+    <div class="attente" id="attente" hidden>
+      <p>Deux lecteurs parcourent le document. Comptez quelques secondes.</p>
+      <div class="jauge"></div>
+    </div>
+
+    <form id="fiche" hidden>
+      <div id="verdict"></div>
+      <div id="messages"></div>
+      <div id="groupes"></div>
+
+      <div class="commandes">
+        <button type="button" id="btn-confronter" class="second">Confronter à la base</button>
+        <button type="button" id="btn-enregistrer">Enregistrer la parcelle</button>
+        <p class="raison-bloquee" id="raison-bloquee" hidden>L'enregistrement s'ouvrira
+          quand le verdict passera à « exploitable ».</p>
+      </div>
+    </form>
+  </section>
+
+</main>
+
+<script src="fiche.js"></script>
+</body>
+</html>

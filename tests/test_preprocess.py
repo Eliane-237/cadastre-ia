@@ -1,11 +1,11 @@
 import cv2
 import numpy as np
 
-from model.preprocess import (
+from app.document.loader import load_image
+from app.document.preprocess import (
     find_document_quad,
     flatten_illumination,
     illumination_unevenness,
-    load_image,
     preprocess,
 )
 
@@ -57,3 +57,48 @@ def test_chemin_non_ascii(tmp_path):
     path = tmp_path / "titre_médina.png"
     cv2.imencode(".png", page(50, 40))[1].tofile(str(path))
     assert load_image(path).shape == (50, 40, 3)
+
+
+# ------------------------------------------------- cadre imprime vs bord de la feuille
+
+
+def _scan_avec_cadre():
+    """Un scan : la feuille remplit l'image, et un cadre est imprime dessus."""
+    img = np.full((600, 800, 3), 245, np.uint8)
+    cv2.putText(img, "TITRE N", (60, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2)
+    cv2.rectangle(img, (40, 120), (760, 560), (0, 0, 0), 3)   # le cadre du plan
+    return img
+
+
+def _photo_sur_fond_sombre():
+    """Une photo : feuille claire posee sur un fond sombre, legerement de travers."""
+    img = np.full((600, 800, 3), 35, np.uint8)
+    feuille = np.array([[120, 90], [690, 70], [710, 520], [140, 540]], np.int32)
+    cv2.fillConvexPoly(img, feuille, (242, 242, 242))
+    cv2.putText(img, "TITRE N", (200, 200), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2)
+    return img
+
+
+def test_cadre_imprime_refuse_et_image_intacte():
+    img = _scan_avec_cadre()
+    out, steps = preprocess(img, illumination=False)
+    assert steps.get("perspective_refusee")           # le cadre n'est pas le bord
+    assert out.shape == img.shape                     # rien n'a ete ampute
+
+
+def test_feuille_sur_fond_sombre_bien_recadree():
+    img = _photo_sur_fond_sombre()
+    out, steps = preprocess(img, illumination=False)
+    assert steps["perspective"] is not None
+    assert "perspective_refusee" not in steps         # la correction reste possible
+    assert out.shape[0] < img.shape[0]                # le fond sombre a ete retire
+
+
+def test_le_juge_est_la_luminosite_du_dehors():
+    from app.document.preprocess import _quad_borde_la_feuille, find_document_quad
+
+    photo = _photo_sur_fond_sombre()
+    assert _quad_borde_la_feuille(photo, find_document_quad(photo)) is True
+
+    scan = _scan_avec_cadre()
+    assert _quad_borde_la_feuille(scan, find_document_quad(scan)) is False

@@ -4,19 +4,22 @@
 
 Lit `reports/readings/*.json` (les extractions fusionnees : points, superficie
 imprimee, longueurs de cotes) et affiche, document par document, la reparation
-que `model.digit_repair` proposerait. Purement diagnostique : n'ecrit aucun
-fichier et n'est appele par aucun module de `model/`.
+que `app.extraction.digit_repair` proposerait. Purement diagnostique : n'ecrit aucun
+fichier et n'est appele par aucun module de `app/`.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
-from model.digit_repair import find_repair, shoelace
-from model.normalize import parse_area
-from model.validate import unreliable_sides
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.core.normalize import parse_area  # noqa: E402
+from app.extraction.digit_repair import find_repair, shoelace  # noqa: E402
+from app.validation.rules import unreliable_sides  # noqa: E402
 
 READINGS = Path("reports/readings")
 
@@ -24,7 +27,7 @@ READINGS = Path("reports/readings")
 def _printed_m2(extraction: dict) -> float | None:
     """Le texte imprime fait foi ; la structure du lecteur ne sert que de secours.
 
-    Meme regle que `model.merge_readings` : un lecteur range parfois les ares
+    Meme regle que `app.extraction.merge` : un lecteur range parfois les ares
     dans les hectares (« 44a 89ca » lu ha=44, a=89), ce qui multiplierait la
     superficie par cent et fausserait tout le jugement geometrique.
     """
@@ -69,7 +72,8 @@ def _coords(extraction: dict) -> tuple[list[str], list[str]] | None:
     return xs, ys
 
 
-def _sides(extraction: dict, printed_m2: float | None) -> tuple[list[float | None] | None, str | None]:
+def _sides(extraction: dict,
+           printed_m2: float | None) -> tuple[list[float | None] | None, str | None]:
     sides = [s.get("value") for s in (extraction.get("printed_sides") or [])]
     if not any(s is not None for s in sides):
         return None, None
@@ -96,7 +100,7 @@ def scan(path: Path, tolerance_pct: float, side_tolerance_m: float) -> str:
     if printed is None:
         return f"{name:42s} -- superficie imprimee absente, pas de juge geometrique"
 
-    points = [(float(x), float(y)) for x, y in zip(xs, ys)]
+    points = [(float(x), float(y)) for x, y in zip(xs, ys, strict=False)]
     area = shoelace(points)
     gap = abs(area - printed) / printed * 100
 

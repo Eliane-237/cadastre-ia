@@ -40,6 +40,11 @@ def _proprietes(p: Parcel) -> dict[str, Any]:
         "titre_mere": p.mother_title,
         "aire_m2": round(p.area_m2, 2),
         "aire_imprimee_m2": p.printed_m2,
+        # La qualité voyage avec la géométrie : une carte qui montre un polygone sans
+        # dire ce qu'il vaut laisse croire qu'il vaut le pixel. C'est ce que le Kadaster
+        # publie sur son Informatiekaart, et ce que QGIS lira dans la table attributaire.
+        "precision_m": round(p.precision_m, 3) if p.precision_m is not None else None,
+        "qualite": p.qualite,
         "datum": p.datum,
         "comparable": p.comparable,
     }

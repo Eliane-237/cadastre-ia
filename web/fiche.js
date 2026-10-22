@@ -261,8 +261,8 @@ function blocBornage() {
     if (doute) tr.className = 'doute';
     tr.innerHTML = `
       <td>${txt(p.label)}</td>
-      <td class="nombre"><input class="nombre" value="${coord(p.x.value)}" style="width:13ch"></td>
-      <td class="nombre"><input class="nombre" value="${coord(p.y.value)}" style="width:13ch"></td>
+      <td class="nombre"><input class="nombre" value="${coord(p.x)}" style="width:13ch"></td>
+      <td class="nombre"><input class="nombre" value="${coord(p.y)}" style="width:13ch"></td>
       <td class="nombre confiance">${pct(Math.min(p.x.confidence, p.y.confidence))}</td>`;
 
     const [ix, iy] = tr.querySelectorAll('input');
@@ -380,9 +380,20 @@ const m2  = (a) => `${(a.ha * 10000 + a.a * 100 + a.ca).toLocaleString('fr-FR')}
 
 const entier = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 0; };
 
-/* Le JSON rend 294818.33 là où le document imprime 294818.330 : le zéro final
- * disparaît dans le nombre, pas dans la lecture. On le réaffiche. */
-const coord = (v) => (v === null || v === undefined ? '' : Number(v).toFixed(3));
+/* Le JSON rend 234773.6 là où le document imprime 234773.60 : le zéro final
+ * disparaît dans le nombre, pas dans la lecture. On le réaffiche — mais on
+ * n'en ajoute jamais. `raw_text` est la chaîne telle que lue sur le papier ;
+ * c'est elle qui dit combien de décimales le document porte, deux ici, trois
+ * ailleurs. Afficher un nombre fixe de décimales reviendrait à combler le trou. */
+const decimales = (s) => {
+  const m = String(s ?? '').replace(',', '.').match(/\.(\d+)\s*$/);
+  return m ? m[1].length : null;
+};
+const coord = (f) => {
+  if (!f || f.value === null || f.value === undefined) return '';
+  const d = decimales(f.raw_text) ?? decimales(f.value) ?? 0;
+  return Number(f.value).toFixed(d);
+};
 const reel   = (v) => { const n = parseFloat(String(v).replace(',', '.'));
                         return Number.isFinite(n) ? n : null; };
 

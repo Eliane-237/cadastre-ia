@@ -15,10 +15,16 @@ Trois précautions portent ce module :
   Thiès porte trois fois « Surplus TF 6652/TH ».
 - Deux parcelles exprimées dans des datums différents ou inconnus ne se comparent
   pas. Un mètre d'écart, sur une parcelle aux côtés de quinze mètres, en fait 7 %.
+- Un recouvrement plus étroit que l'incertitude de levé des deux parcelles ne dit
+  rien. Avant de l'ajouter, ce module rendait une aire sans savoir si elle était du
+  signal ou du bruit — sur la fonction qui justifie tout le projet. Le Kadaster
+  néerlandais attache pour cette raison une qualité à chaque élément de sa carte
+  plutôt qu'une précision globale (Hagemans et al., FIG 2020).
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -28,6 +34,7 @@ from app.geospatial.parcel import Parcel
 
 class Verdict(str, Enum):
     VOISINAGE = "voisinage"            # limite partagée : rien à signaler
+    SOUS_INCERTITUDE = "sous_incertitude"   # plus étroit que la précision des deux levés
     CHEVAUCHEMENT = "chevauchement"    # recouvrement partiel : conflit
     INCLUSION = "inclusion"            # une parcelle dans l'autre : conflit
     MORCELLEMENT = "morcellement"      # inclusion expliquée par le titre mère
@@ -46,6 +53,8 @@ class Recouvrement:
     b: str
     aire_m2: float
     part_pct: float                     # du recouvrement dans la plus petite parcelle
+    largeur_m: float = 0.0              # largeur moyenne du recouvrement, 2·aire/périmètre
+    incertitude_m: float | None = None  # incertitude combinée des deux levés, si connue
 
     @property
     def conflit(self) -> bool:
@@ -53,6 +62,11 @@ class Recouvrement:
 
     @property
     def message(self) -> str:
+        if self.verdict is Verdict.SOUS_INCERTITUDE:
+            return (f"{self.a} et {self.b} se recouvrent sur {self.aire_m2:.2f} m², "
+                    f"large de {self.largeur_m * 100:.0f} cm en moyenne, soit moins que "
+                    f"l'incertitude des deux levés ({self.incertitude_m * 100:.0f} cm) : "
+                    "rien de mesurable.")
         if self.verdict is Verdict.VOISINAGE:
             return (f"{self.a} et {self.b} se touchent sur {self.aire_m2:.2f} m² "
                     f"({self.part_pct:.2f} %) : limite partagée.")
@@ -62,8 +76,12 @@ class Recouvrement:
         if self.verdict is Verdict.INCLUSION:
             return (f"{self.a} est contenu dans {self.b} à {self.part_pct:.1f} % "
                     f"({self.aire_m2:.0f} m²) sans titre mère qui l'explique.")
+        reserve = (f", au-delà de l'incertitude des deux levés "
+                   f"({self.incertitude_m * 100:.0f} cm)"
+                   if self.incertitude_m is not None else
+                   ", sans que la précision des levés soit connue")
         return (f"{self.a} et {self.b} se recouvrent sur {self.aire_m2:.0f} m², "
-                f"soit {self.part_pct:.1f} % de la plus petite.")
+                f"soit {self.part_pct:.1f} % de la plus petite{reserve}.")
 
 
 def _lie_par_titre_mere(a: Parcel, b: Parcel) -> bool:
@@ -94,7 +112,21 @@ def compare(a: Parcel, b: Parcel, cfg: Settings = SETTINGS) -> Recouvrement | No
     plus_petite = min(a.area_m2, b.area_m2)
     part = commun.area / plus_petite * 100 if plus_petite else 0.0
 
-    if part < cfg.overlap_min_share_pct:
+    # Largeur moyenne de la zone commune : pour une bande, aire ≈ longueur × largeur,
+    # et le périmètre d'une bande vaut à peu près deux fois sa longueur.
+    largeur = 2 * commun.area / commun.length if commun.length > 0 else 0.0
+
+    # Les deux incertitudes se composent en quadrature : ce sont des erreurs de levé
+    # indépendantes, pas des erreurs qui s'additionnent.
+    pa, pb = a.precision_m, b.precision_m
+    incertitude = math.hypot(pa, pb) if pa is not None and pb is not None else None
+
+    if incertitude is not None and largeur <= incertitude:
+        # Deux levés de la même limite ne tombent pas au même endroit. En deçà de ce
+        # qu'ils savent distinguer, il n'y a rien à constater — et surtout rien à
+        # opposer à un propriétaire.
+        verdict = Verdict.SOUS_INCERTITUDE
+    elif part < cfg.overlap_min_share_pct:
         verdict = Verdict.VOISINAGE
     elif part >= cfg.overlap_inclusion_pct:
         verdict = Verdict.MORCELLEMENT if _lie_par_titre_mere(a, b) else Verdict.INCLUSION
@@ -109,6 +141,8 @@ def compare(a: Parcel, b: Parcel, cfg: Settings = SETTINGS) -> Recouvrement | No
         b=second.title_number or second.document_id,
         aire_m2=commun.area,
         part_pct=part,
+        largeur_m=largeur,
+        incertitude_m=incertitude,
     )
 
 

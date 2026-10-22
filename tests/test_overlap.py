@@ -59,8 +59,10 @@ def test_parcelles_eloignees(mermoz):
 
 def test_voisins_partageant_une_limite(mermoz):
     # Deux leves de la meme limite different de quelques centimetres : pas un conflit.
+    # La bande commune fait 1,8 mm pour 1,4 cm d'incertitude de leve : le verdict le dit
+    # en centimetres, au lieu de « moins de 1 % de la parcelle ».
     r = compare(mermoz, decalee(mermoz, 13.79, -9.37, "VOISIN"))
-    assert r.verdict is Verdict.VOISINAGE and not r.conflit
+    assert r.verdict is Verdict.SOUS_INCERTITUDE and not r.conflit
 
 
 def test_recouvrement_partiel(mermoz):
@@ -99,5 +101,62 @@ def test_balayage_conflits_en_tete(mermoz, thies):
             decalee(mermoz, 13.79, -9.37, "VOISIN"),
             decalee(mermoz, 5.0, -3.0, "MOITIE")]
     trouves = scan(mermoz, base)
-    assert [r.verdict for r in trouves] == [Verdict.CHEVAUCHEMENT, Verdict.VOISINAGE]
+    assert [r.verdict for r in trouves] == [Verdict.CHEVAUCHEMENT, Verdict.SOUS_INCERTITUDE]
     assert trouves[0].conflit
+
+
+# --- Précision de position et recouvrement sous incertitude -------------------
+# Un recouvrement plus étroit que ce que les deux levés savent distinguer ne doit
+# pas être constaté. Avant ces tests, l'aire était rendue sans savoir si elle
+# était du signal ou du bruit.
+
+def test_precision_se_deduit_de_l_ecart_de_superficie():
+    """ε ≈ |aire calculée − aire imprimée| / périmètre."""
+    a = reelle("D11")
+    attendu = abs(a.area_m2 - a.printed_m2) / a.polygon.length
+    assert a.precision_m == pytest.approx(max(attendu, 0.01))
+
+
+def test_precision_inconnue_sans_superficie_imprimee():
+    """Pas de superficie au document : la qualité se dit inconnue, pas par défaut."""
+    sans = Parcel(document_id="X", polygon=reelle("D11").polygon, crs="EPSG:32628",
+                  datum=DATUM_RRS04, printed_m2=None)
+    assert sans.precision_m is None
+    assert sans.qualite == "?"
+
+
+def test_recouvrement_plus_etroit_que_l_incertitude_n_est_pas_un_conflit():
+    """Une bande de 1,8 mm entre deux levés sûrs à 1 cm : il n'y a rien à constater.
+
+    Ce qui compte est la largeur de la bande commune, pas son aire : une parcelle
+    décalée d'un centimètre se recouvre à 99,99 %, et ce n'est pas du bruit de levé,
+    c'est le même terrain lu deux fois.
+    """
+    a = reelle("D11")
+    b = decalee(a, 13.79, -9.37, "VOISIN")
+    r = compare(a, b)
+    assert r is not None
+    assert r.largeur_m < r.incertitude_m
+    assert r.verdict is Verdict.SOUS_INCERTITUDE
+    assert r.conflit is False
+    assert "rien de mesurable" in r.message
+
+
+def test_vrai_chevauchement_reste_un_conflit_et_annonce_l_incertitude():
+    a = reelle("D11")
+    b = decalee(a, 5.0, -3.0, "VOISIN")          # bande de 6,3 m : largement mesurable
+    r = compare(a, b)
+    assert r is not None
+    assert r.conflit is True
+    assert r.incertitude_m is not None
+    assert "au-delà de l'incertitude" in r.message
+
+
+def test_incertitude_inconnue_dit_qu_elle_l_est():
+    a = reelle("D11")
+    b = Parcel(document_id="VOISIN", polygon=translate(a.polygon, 5.0, -3.0),
+               crs=a.crs, datum=a.datum, title_number="VOISIN", printed_m2=None)
+    r = compare(a, b)
+    assert r is not None
+    assert r.incertitude_m is None
+    assert "sans que la précision des levés soit connue" in r.message

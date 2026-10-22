@@ -19,6 +19,7 @@ from shapely.geometry import Polygon
 from shapely.geometry.polygon import orient
 
 from app.core.schema import DATUM_INCONNU, UTM_28N, Extraction, Severity
+from app.geospatial.measures import classe_qualite, precision_position
 
 MIN_POINTS = 3
 
@@ -43,6 +44,19 @@ class Parcel:
     def area_m2(self) -> float:
         """L'aire calculée depuis les sommets, en mètres carrés (la projection est métrique)."""
         return self.polygon.area
+
+    @property
+    def precision_m(self) -> float | None:
+        """Incertitude de position des sommets, déduite du document. None si inconnue.
+
+        C'est elle qui dit si un recouvrement mesuré est du signal ou du bruit de levé.
+        """
+        return precision_position(self.area_m2, self.printed_m2, self.polygon.length)
+
+    @property
+    def qualite(self) -> str:
+        """La classe de qualité (B à F, « ? » si inconnue), au sens du Kadaster."""
+        return classe_qualite(self.precision_m)
 
     @property
     def comparable(self) -> bool:

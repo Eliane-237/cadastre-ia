@@ -127,6 +127,9 @@ async function selectionner(doc, props) {
         <dt>Surface imprimée</dt><dd>${props.aire_imprimee_m2
           ? props.aire_imprimee_m2.toLocaleString('fr-FR') + ' m²' : '—'}</dd>
         <dt>Écart</dt><dd>${ecart}</dd>
+        <dt>Précision</dt><dd>${props.precision_m != null
+          ? `± ${(props.precision_m * 100).toFixed(0)} cm (classe ${txt(props.qualite)})`
+          : 'inconnue'}</dd>
         <dt>Référentiel</dt><dd>${txt(props.datum)}</dd>
       </dl>
       <p class="vide" id="rec" style="margin:8px 0 0">Recherche des voisines…</p>

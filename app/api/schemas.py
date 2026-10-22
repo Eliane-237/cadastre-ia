@@ -35,6 +35,12 @@ class ParcelleOut(BaseModel):
     aire_m2: float
     aire_imprimee_m2: float | None = None
     ecart_pct: float | None = None
+    precision_m: float | None = Field(
+        default=None,
+        description="Incertitude de position des sommets, déduite de l'écart entre "
+                    "l'aire calculée et l'aire imprimée. null si le document ne permet "
+                    "pas de la déduire — une qualité inconnue se dit.")
+    qualite: str = Field(default="?", description="Classe de qualité B à F, « ? » si inconnue.")
     sommets: list[tuple[float, float]]
 
     @classmethod
@@ -46,6 +52,8 @@ class ParcelleOut(BaseModel):
             crs=p.crs, datum=p.datum, comparable=p.comparable,
             aire_m2=round(p.area_m2, 2), aire_imprimee_m2=p.printed_m2,
             ecart_pct=round(ecart, 3) if ecart is not None else None,
+            precision_m=round(p.precision_m, 3) if p.precision_m is not None else None,
+            qualite=p.qualite,
             sommets=[(round(x, 3), round(y, 3))
                      for x, y in list(p.polygon.exterior.coords)[:-1]],
         )
@@ -57,13 +65,18 @@ class RecouvrementOut(BaseModel):
     b: str
     aire_m2: float
     part_pct: float
+    largeur_m: float = 0.0
+    incertitude_m: float | None = None
     conflit: bool
     message: str
 
     @classmethod
     def de(cls, r: Recouvrement) -> RecouvrementOut:
         return cls(verdict=r.verdict.value, a=r.a, b=r.b, aire_m2=round(r.aire_m2, 2),
-                   part_pct=round(r.part_pct, 2), conflit=r.conflit, message=r.message)
+                   part_pct=round(r.part_pct, 2), largeur_m=round(r.largeur_m, 3),
+                   incertitude_m=(round(r.incertitude_m, 3)
+                                  if r.incertitude_m is not None else None),
+                   conflit=r.conflit, message=r.message)
 
 
 class LectureOut(BaseModel):

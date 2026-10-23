@@ -324,6 +324,15 @@ document.getElementById('btn-confronter').addEventListener('click', async (e) =>
     }
     // Le GeoJSON de confrontation porte la parcelle ET ses voisines d'emprise ;
     // les voisines sont déjà en base, seule la nouvelle est à superposer.
+    // Deux parcelles d'un même propriétaire sont le cas le plus banal du cadastre :
+    // on les montre ensemble, on ne conclut rien.
+    if (d.rapprochements?.length) {
+      message(`Le propriétaire s'écrit presque pareil sur `
+        + `${d.rapprochements.length} titre${d.rapprochements.length > 1 ? 's' : ''} `
+        + `déjà en base :<ul>${d.rapprochements.map((x) =>
+            `<li>${txt(x.message)}</li>`).join('')}</ul>`);
+    }
+
     sessionStorage.setItem('cadastre.confrontation', JSON.stringify({
       document: d.parcelle.document_id, geojson: d.geojson }));
     message('Les parcelles confrontées sont reportées sur la <a href="carte.html">carte</a>.');

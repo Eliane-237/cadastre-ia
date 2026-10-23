@@ -388,3 +388,223 @@ def test_titre_egal_mere_envoie_en_revue_sans_bloquer_la_geometrie():
     assert ex.issues[0].severity is Severity.WARNING
     assert not ex.has_error          # les coordonnees restent exploitables
     assert ex.needs_review()         # mais un humain doit trancher
+
+
+# --- Rapprochement des identités de propriétaires ----------------------------
+# Le même requérant ne s'écrit pas deux fois pareil d'un titre à l'autre. Ce que
+# ces tests gardent surtout, c'est ce que le module refuse de rapprocher.
+
+from app.validation.parties import (  # noqa: E402
+    Identite,
+    Lien,
+    Niveau,
+    concordance,
+    jetons,
+    lien,
+    patronyme,
+    rapprocher,
+    similarite,
+)
+
+
+def test_jetons_ignorent_civilite_ordre_et_ponctuation():
+    assert jetons("M. Mamadou DIOP") == jetons("Diop, Mamadou") == ("diop", "mamadou")
+
+
+def test_jetons_recollent_les_sigles():
+    """« S.C.I. » doit devenir un jeton, pas trois lettres isolées aussitôt écartées."""
+    assert jetons("S.C.I. Les Baobabs") == ("baobabs", "sci")
+
+
+@pytest.mark.parametrize("a, b", [
+    ("SOCIETE IMMOBILIERE DU CAP-VERT", "Sté Immobilière du Cap Vert"),
+    ("DIOP Mamadou", "Mamadou DIOP"),
+    ("El Hadj Ousmane NDIAYE", "Ousmane Ndiaye"),
+    ("Ets SALL et Frères", "ETABLISSEMENTS SALL ET FRERES"),
+    ("G.I.E. NDAR", "GIE Ndar"),
+])
+def test_memes_parties_ecrites_autrement(a, b):
+    assert similarite(a, b) == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize("a, b", [
+    ("Fatou SALL", "Fatou FALL"),          # deux patronymes sénégalais distincts
+    ("Mamadou DIOP", "Mamadou DIOUF"),
+    ("Mamadou DIOP", "Aminata DIOP"),
+    ("Mamadou DIOP", "SOCIETE IMMOBILIERE DU CAP-VERT"),
+])
+def test_parties_distinctes_ne_se_rapprochent_pas(a, b):
+    """Le seuil qui repêcherait une coquille d'OCR confondrait SALL et FALL.
+
+    `diop`/`diof` et `sall`/`fall` donnent le même rapport, 0,750 : aucun réglage ne
+    sépare la coquille de la famille voisine. Un nom mal lu se corrige à l'extraction.
+    """
+    assert similarite(a, b) < 0.78
+    assert rapprocher(a, [("D99", b)]) == []
+
+
+def test_prenom_supplementaire_part_en_verification_pas_en_certitude():
+    [r] = rapprocher("Mamadou Lamine DIOP", [("D99", "Mamadou DIOP")])
+    assert r.niveau is Niveau.A_VERIFIER
+    assert r.document == "D99"
+    assert "ne suffit pas à établir une identité" in r.message
+
+
+def test_rapprochement_sans_nom_ne_rend_rien():
+    assert rapprocher(None, [("D99", "Mamadou DIOP")]) == []
+    assert rapprocher("M.", [("D99", "Mamadou DIOP")]) == []
+
+
+def test_meilleurs_scores_en_tete():
+    base = [("D1", "Mamadou Lamine DIOP"), ("D2", "DIOP Mamadou")]
+    scores = [r.score for r in rapprocher("Mamadou DIOP", base)]
+    assert scores == sorted(scores, reverse=True)
+
+
+# --- La casse dit lequel des mots est le patronyme ---------------------------
+# Les titres écrivent le patronyme en capitales et le prénom en bas de casse.
+# Trier les jetons sans lire la casse rendait « Mamadou DIOP » et « MAMADOU Diop »
+# identiques : deux personnes sans rapport, rapprochées à 100 %.
+
+@pytest.mark.parametrize("nom, attendu", [
+    ("DIOP Mamadou", ("diop",)),
+    ("Mamadou DIOP", ("diop",)),
+    ("M. Mamadou DIOP", ("diop",)),
+    ("El Hadj Ousmane NDIAYE", ("ndiaye",)),
+    ("MAMADOU Diop", ("mamadou",)),
+])
+def test_patronyme_se_lit_a_la_casse(nom, attendu):
+    assert patronyme(nom) == attendu
+
+
+@pytest.mark.parametrize("nom", [
+    "MAMADOU DIOP",                      # tout en capitales : l'OCR en produit souvent
+    "mamadou diop",                      # tout en bas de casse
+    "SOCIETE IMMOBILIERE DU CAP-VERT",   # personne morale : la convention ne s'applique pas
+    "Sté Immobilière du Cap Vert",
+    "S.C.I. Les Baobabs",
+])
+def test_patronyme_vide_quand_le_document_ne_distingue_pas(nom):
+    """Un signal absent ne se devine pas."""
+    assert patronyme(nom) == ()
+
+
+def test_patronymes_differents_ecartent_deux_noms_pourtant_identiques():
+    """Le cas que le tri des jetons rendait invisible."""
+    assert similarite("Mamadou DIOP", "MAMADOU Diop") == 0.0
+    assert rapprocher("Mamadou DIOP", [("D99", "MAMADOU Diop")]) == []
+
+
+def test_sans_signal_de_casse_on_retombe_sur_les_jetons():
+    assert similarite("MAMADOU DIOP", "Mamadou Diop") == pytest.approx(1.0)
+
+
+def test_la_casse_ecarte_mais_ne_rapproche_jamais():
+    """Un même patronyme ne suffit pas : le prénom diffère, le score reste bas."""
+    assert patronyme("Mamadou DIOP") == patronyme("Aminata DIOP") == ("diop",)
+    assert similarite("Mamadou DIOP", "Aminata DIOP") == pytest.approx(0.5)
+
+
+def test_personne_morale_a_la_casse_incoherente_reste_rapprochee():
+    """« STE Immobilière » et « Sté IMMOBILIERE » : la règle du patronyme ne s'applique
+    pas aux personnes morales, dont la casse ne suit aucune convention."""
+    assert similarite("STE Immobilière du Cap-Vert",
+                      "Sté IMMOBILIERE du Cap-Vert") == pytest.approx(1.0)
+
+
+# --- Le lien d'abord, le nom ensuite ------------------------------------------
+# Un nom seul ne rattache pas deux titres : des milliers de personnes portent le
+# meme au Senegal. On ne confronte deux identites que sur un lien deja etabli.
+
+def _parcelle_test(doc, titre=None, mere=None, nicad=None, owner=None):
+    from shapely.geometry import Polygon
+
+    from app.geospatial.parcel import Parcel
+    return Parcel(document_id=doc, polygon=Polygon([(0, 0), (10, 0), (10, 10), (0, 10)]),
+                  crs="EPSG:32628", datum=DATUM_RRS04, title_number=titre,
+                  mother_title=mere, nicad=nicad, owner=owner)
+
+
+def test_nicad_identique_lie_deux_titres():
+    a = _parcelle_test("A", nicad="0113 0134")
+    assert lien(a, _parcelle_test("B", nicad="01130134")) is Lien.NICAD
+
+
+def test_filiation_declaree_lie_deux_titres():
+    a = _parcelle_test("A", titre="22 665/GR")
+    assert lien(a, _parcelle_test("B", mere="TF n° 22.665/GR")) is Lien.TITRE_MERE
+
+
+def test_meme_nom_sans_lien_ne_donne_aucune_concordance():
+    """Le cœur de la correction : un homonyme n'est pas un dossier."""
+    a = _parcelle_test("A", titre="1/DK", owner="Mamadou DIOP")
+    b = _parcelle_test("B", titre="999/DK", owner="DIOP Mamadou")
+    assert lien(a, b) is None
+    assert concordance(a, b) is None
+
+
+def test_meme_parcelle_deux_requerants_est_a_instruire():
+    a = _parcelle_test("A", nicad="01130134", owner="Mamadou DIOP")
+    b = _parcelle_test("B", nicad="01130134", owner="NDIAYE Ousmane")
+    c = concordance(a, b)
+    assert c.identite is Identite.DIVERGENTE
+    assert c.a_instruire is True
+    assert "à instruire" in c.message
+
+
+def test_morcellement_cede_a_un_tiers_n_est_pas_a_instruire():
+    """Un lot détaché et vendu porte normalement un autre nom que le titre mère."""
+    a = _parcelle_test("A", titre="22 665/GR", owner="Mamadou DIOP")
+    b = _parcelle_test("B", mere="22 665/GR", owner="NDIAYE Ousmane")
+    c = concordance(a, b)
+    assert c.lien is Lien.TITRE_MERE
+    assert c.identite is Identite.DIVERGENTE
+    assert c.a_instruire is False
+    assert "normal pour un morcellement" in c.message
+
+
+def test_requerant_non_lu_laisse_l_identite_indeterminee():
+    """Le cas le plus fréquent du corpus : le requérant n'est lu que sur un titre sur cinq."""
+    a = _parcelle_test("A", nicad="01130134", owner="Mamadou DIOP")
+    c = concordance(a, _parcelle_test("B", nicad="01130134", owner=None))
+    assert c.identite is Identite.INDETERMINEE
+    assert c.a_instruire is False
+    assert "ne peut pas être vérifiée" in c.message
+
+
+# --- Copropriete : le seul cas ou deux titres partagent un NICAD --------------
+# Decret sur l'identification cadastrale : le NICAD est unique par parcelle
+# (art. 1 et 2) et tout morcellement annule les anciens (art. 4). En copropriete
+# (art. 6), il designe la parcelle d'assise et le numero de lot distingue les biens.
+
+def _copro(doc, nicad="0113013401200430", lot=None, owner=None):
+    from shapely.geometry import Polygon
+
+    from app.geospatial.parcel import Parcel
+    return Parcel(document_id=doc, polygon=Polygon([(0, 0), (10, 0), (10, 10), (0, 10)]),
+                  crs="EPSG:32628", datum=DATUM_RRS04, nicad=nicad, lot=lot, owner=owner)
+
+
+def test_meme_nicad_lots_distincts_est_une_copropriete():
+    a = _copro("A", nicad="0113 0134 0120 0430", lot="Lot n° 12", owner="DIOP Mamadou")
+    b = _copro("B", lot="LOT 7", owner="NDIAYE Ousmane")
+    c = concordance(a, b)
+    assert c.lien is Lien.COPROPRIETE
+    assert c.a_instruire is False
+    assert "normal en copropriété" in c.message
+
+
+def test_meme_nicad_meme_lot_deux_requerants_est_a_instruire():
+    a = _copro("A", lot="Lot n° 12", owner="DIOP Mamadou")
+    c = concordance(a, _copro("B", lot="lot 12", owner="NDIAYE Ousmane"))
+    assert c.lien is Lien.NICAD
+    assert c.a_instruire is True
+    assert c.reserve is None
+
+
+def test_lot_non_lu_signale_sa_reserve():
+    """Sans numéro de lot, une copropriété ne peut pas être écartée : l'agent doit le savoir."""
+    a = _copro("A", lot="Lot n° 12", owner="DIOP Mamadou")
+    c = concordance(a, _copro("B", lot=None, owner="NDIAYE Ousmane"))
+    assert c.a_instruire is True
+    assert "copropriété ne peut pas être écartée" in c.message

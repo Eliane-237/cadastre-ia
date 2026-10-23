@@ -83,6 +83,12 @@ class Settings:
     overlap_min_share_pct: float = 1.0
     # Au-dela, une parcelle est consideree comme contenue dans l'autre.
     overlap_inclusion_pct: float = 95.0
+    # Rapprochement de deux ecritures d'un meme proprietaire, part de jetons communs.
+    # Au-dela de party_match_pct, les ecritures sont tres proches ; entre les deux, un
+    # agent tranche. Aucun des deux ne fusionne quoi que ce soit : un nom n'est pas une
+    # identite, et deux parcelles d'un meme proprietaire sont le cas le plus banal.
+    party_match_pct: float = 0.92
+    party_review_pct: float = 0.78
     # Distance maximale entre une parcelle et la localite qu'elle declare, en km.
     # Une region est vaste, une commune ne l'est pas : le seuil suit le niveau.
     locality_commune_km: float = 25.0

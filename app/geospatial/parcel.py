@@ -38,6 +38,9 @@ class Parcel:
     datum: str
     title_number: str | None = None
     mother_title: str | None = None
+    nicad: str | None = None           # l'identifiant cadastral, quand il est imprimé
+    lot: str | None = None             # en copropriété, ce qui distingue deux lots d'un NICAD
+    owner: str | None = None           # tel qu'écrit sur le document, jamais normalisé ici
     printed_m2: float | None = None
 
     @property
@@ -122,5 +125,8 @@ def parcel(extraction: Extraction) -> Parcel:
         datum=extraction.datum,
         title_number=_valeur(extraction.title_number),
         mother_title=_valeur(extraction.mother_title),
+        nicad=_valeur(extraction.nicad),
+        lot=_valeur(extraction.lot),
+        owner=_valeur(extraction.owner),
         printed_m2=float(aire.value.m2) if aire.present and aire.value else None,
     )

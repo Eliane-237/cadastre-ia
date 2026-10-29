@@ -276,3 +276,5 @@ ul.parcelles .alerte { font-size: 0.8125rem; color: var(--cachet); }
 .detail-parcelle dd { margin: 0; font-family: 'IBM Plex Mono', monospace; }
 .detail-parcelle img { width: 100%; border: 1px solid var(--trait);
                        background: var(--surface); margin-top: var(--pas); }
+
+#carte-lecture { background: var(--papier); height: 340px; }

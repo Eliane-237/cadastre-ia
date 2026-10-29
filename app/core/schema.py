@@ -35,13 +35,19 @@ FUSEAUX: dict[str, str] = {"28": UTM_28N, "29": UTM_29N}
 # est là pour buter dessus quand elle est fausse.
 FUSEAU_DEFAUT = UTM_28N
 
-# Le RRS04 — Réseau de Référence du Sénégal, établi en 2004 par la DTGC avec l'IGN —
-# est une réalisation locale de l'ITRF2000 à l'époque 2004,55, sur l'ellipsoïde GRS80,
-# projetée en UTM fuseau 28 Nord. GRS80 et WGS84 partagent le même ellipsoïde, et la
-# compatibilité ITRF2000/WGS84 est « de l'ordre du mètre » : EPSG:32628 vaut donc tel
-# quel pour confronter deux documents du cadastre entre eux, mais PAS pour confronter
-# un titre à un relevé GPS ou à une image satellite sans transformation rigoureuse.
-# Un mètre, sur une parcelle de 221 m² aux côtés de 15 m, fait 7 % de la dimension.
+# Le RRS04 — Réseau de Référence du Sénégal, établi en 2004 par la DTGC avec l'IGN — est
+# une réalisation locale de l'ITRF2000 à l'époque 2004,55, sur l'ellipsoïde GRS80.
+#
+# GRS80 et WGS84 partagent le même ellipsoïde au millième de millimètre près, et les
+# réalisations ITRF2000 et WGS84 s'accordent au centimètre. Ce qui sépare réellement nos
+# coordonnées d'un relevé GPS d'aujourd'hui, c'est le TEMPS : elles sont figées à
+# l'époque 2004,55, et la plaque africaine dérive vers le nord-est d'environ 3 cm par an.
+# Vingt ans plus tard, l'écart est de l'ordre de 60 cm, et il grandit.
+#
+# Deux documents du cadastre se confrontent donc entre eux sans réserve — ils sont figés
+# à la même époque. Confronter un titre à un relevé GPS ou à une image satellite demande,
+# lui, une transformation rigoureuse que la DTGC seule peut fournir : le RRS04 n'a ni code
+# EPSG ni grille NTv2 publiés.
 DATUM_RRS04 = "RRS04 (ITRF2000, époque 2004.55, ellipsoïde GRS80)"
 # Tant que le système imprimé n'a pas été lu et reconnu, le datum reste inconnu : un
 # traitement en aval doit buter dessus plutôt que de supposer du WGS84.

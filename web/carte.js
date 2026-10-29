@@ -19,22 +19,14 @@ if (typeof L === 'undefined') {
   throw new Error('leaflet absent');
 }
 
-const ENCRE   = '#1a4d7a';
-const CACHET  = '#a8201a';
+// ENCRE, CACHET et carteNue viennent de fonds.js : les deux pages partagent un seul
+// fond de carte et une seule palette. Les redeclarer ici casserait la page — deux
+// `const` de meme nom dans la portee globale sont une erreur de syntaxe.
 const TRAIT   = { color: ENCRE, weight: 1.5, fillColor: ENCRE, fillOpacity: 0.08 };
 const RETENUE = { color: ENCRE, weight: 2.5, fillOpacity: 0.2 };
 const CONFLIT = { color: CACHET, weight: 2, fillColor: CACHET, fillOpacity: 0.25 };
 
-const carte = L.map('carte', { zoomControl: true })
-  .setView([14.6937, -17.4441], 11);           // Dakar, le temps que la couche arrive
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '© OpenStreetMap',
-  opacity: 0.55,                                // le fond reste un fond, les parcelles dominent
-}).addTo(carte);
-
-L.control.scale({ imperial: false }).addTo(carte);
+const carte = carteNue('carte');
 
 const formes = new Map();                       // document_id -> couche Leaflet
 let retenu = null;

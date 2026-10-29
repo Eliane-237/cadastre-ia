@@ -42,6 +42,8 @@ const GROUPES = [
 const CARDINAUX = new Set(['title_number', 'nicad', 'commune', 'owner', 'printed_area']);
 
 let extraction = null;          // l'objet rendu par l'API, édité sur place par l'agent
+let carte = null;               // la carte de la parcelle lue, créée au premier document
+let couche = null;              // sa couche, remplacée à chaque lecture
 
 /* ------------------------------------------------------------------ dépôt */
 
@@ -86,6 +88,7 @@ async function lire(f) {
     poserVerdict(data.jugement);
     construireFiche();
     poserTrace(data.apercu_png);
+    poserCarte(data.geojson, data.centre);
     if (data.geometrie_refusee) {
       message(`Le polygone n'a pas pu être construit : ${data.geometrie_refusee}`, 'erreur');
     }
@@ -120,6 +123,31 @@ function poserTrace(b64) {
 }
 
 /* --------------------------------------------------------------- verdict */
+
+/* La parcelle qu'on vient de lire, posée sur une carte.
+ *
+ * Aucun verdict ne commande cet affichage : `/documents` rend déjà le GeoJSON reprojeté
+ * en WGS84, et la seule condition pour tracer est que le polygone se construise — donc
+ * que les coordonnées aient été lues. Le verdict, lui, ne garde que l'entrée en base.
+ */
+function poserCarte(geojson, centre) {
+  const bloc = document.getElementById('piece-carte');
+  if (!geojson?.features?.length || typeof L === 'undefined') {
+    bloc.hidden = true;
+    return;
+  }
+  bloc.hidden = false;
+  if (!carte) carte = carteNue('carte-lecture');
+  if (couche) couche.remove();
+
+  couche = L.geoJSON(geojson, {
+    style: { color: ENCRE, weight: 2, fillColor: ENCRE, fillOpacity: 0.15 },
+  }).addTo(carte);
+  carte.invalidateSize();          // le bloc était masqué : Leaflet ignorait sa taille
+  carte.fitBounds(couche.getBounds(), { padding: [30, 30], maxZoom: 19 });
+  if (centre) L.marker([centre[1], centre[0]]).addTo(couche);
+}
+
 
 function poserVerdict(j) {
   const titres = {
@@ -333,6 +361,7 @@ document.getElementById('btn-confronter').addEventListener('click', async (e) =>
             `<li>${txt(x.message)}</li>`).join('')}</ul>`);
     }
 
+    poserCarte(d.geojson, d.centre);
     sessionStorage.setItem('cadastre.confrontation', JSON.stringify({
       document: d.parcelle.document_id, geojson: d.geojson }));
     message('Les parcelles confrontées sont reportées sur la <a href="carte.html">carte</a>.');

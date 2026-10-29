@@ -4,10 +4,28 @@ Ce code vivait dans `tools/parcelle.py`, donc l'API ne pouvait pas s'en servir. 
 dupliquer aurait voulu dire deux reprojections qui dérivent l'une de l'autre, et un jour
 deux cartes qui ne montrent pas la même parcelle.
 
-La réserve qui accompagne chaque sortie n'est pas une formalité : la norme GeoJSON impose
-le WGS84, et on y va sans transformation de datum. L'écart RRS04/WGS84 est de l'ordre du
-mètre — sur une parcelle aux côtés de quinze mètres, cela fait 7 %. Bon pour regarder,
-pas pour mesurer.
+La réserve qui accompagne chaque sortie n'est pas une formalité. La norme GeoJSON impose
+le WGS84, et on y va sans transformation de datum : les coordonnées RRS04 sont posées
+telles quelles sur l'ellipsoïde WGS84. C'est une méthode, pas un oubli — ArcGIS la nomme
+transformation « null », et elle consiste à poser que les deux référentiels coïncident.
+
+Ce qu'elle coûte, mesuré sur un sommet réel de Dakar :
+
+- l'ellipsoïde ne coûte rien. GRS80 et WGS84 ont le même demi-grand axe au millième de
+  millimètre près, et des aplatissements qui diffèrent de 1,6 × 10⁻¹¹ ;
+- le repère coûte quelques centimètres. ITRF2000 → ITRF2020 : 1,6 cm à l'époque 2004,55 ;
+- l'époque coûte le reste, et c'est l'essentiel. Les coordonnées sont figées à 2004,55 ;
+  depuis, la plaque africaine dérive vers le nord-est d'environ 3 cm par an. Vingt ans
+  plus tard, cela fait de l'ordre de 60 cm — et ce chiffre grandit chaque année.
+
+Ordre de grandeur de la dérive calculé sur le pôle d'Euler de la plaque Nubie ; la valeur
+exacte demanderait les paramètres officiels de la DTGC, qui ne publie ni code EPSG ni
+grille NTv2 pour le RRS04. Tant qu'ils manquent, rien de plus juste n'est implémentable
+sans inventer des chiffres.
+
+Conséquence pratique : bon pour situer une parcelle sur un fond de carte, insuffisant
+pour la confronter à un relevé GPS ou à une image satellite. Le chiffre opposable reste
+celui calculé en UTM sur les coordonnées imprimées, qui ne passe par aucune reprojection.
 """
 
 from __future__ import annotations
@@ -19,8 +37,13 @@ from app.geospatial.parcel import Parcel
 
 WGS84 = "EPSG:4326"
 
-SANS_DATUM = ("Reprojection UTM 28N → WGS84 sans transformation de datum : l'écart "
-              "RRS04/WGS84 est de l'ordre du mètre, suffisant pour regarder, pas pour mesurer.")
+SANS_DATUM = (
+    "Reprojection UTM → WGS84 sans transformation de datum (transformation « null ») : "
+    "les coordonnées RRS04 sont posées telles quelles sur l'ellipsoïde WGS84. L'écart au "
+    "sol est de l'ordre de 60 cm et grandit d'environ 3 cm par an depuis l'époque 2004,55, "
+    "la plaque africaine dérivant vers le nord-est. Suffisant pour situer une parcelle, "
+    "pas pour la mesurer ni la confronter à une image satellite."
+)
 
 
 def _reprojecteur(crs: str) -> tuple[Callable[[float, float], tuple[float, float]] | None, str]:
@@ -45,6 +68,7 @@ def _proprietes(p: Parcel) -> dict[str, Any]:
         # publie sur son Informatiekaart, et ce que QGIS lira dans la table attributaire.
         "precision_m": round(p.precision_m, 3) if p.precision_m is not None else None,
         "qualite": p.qualite,
+        "crs_source": p.crs,
         "datum": p.datum,
         "comparable": p.comparable,
     }

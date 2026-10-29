@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lecture d'un titre foncier — cadastre-ia</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="cadastre.css">
 </head>
 <body>
@@ -34,6 +35,12 @@
     <figure class="piece" id="piece-source" hidden>
       <img id="apercu-source" alt="Le document déposé">
       <figcaption id="legende-source"></figcaption>
+    </figure>
+
+    <figure class="piece" id="piece-carte" hidden>
+      <div id="carte-lecture"></div>
+      <figcaption>Où tombe cette parcelle, reprojetée en WGS84 depuis les coordonnées
+        lues. Elle n'a pas besoin d'être enregistrée pour s'afficher ici.</figcaption>
     </figure>
 
     <figure class="piece" id="piece-trace" hidden>
@@ -71,6 +78,8 @@
 
 </main>
 
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="fonds.js"></script>
 <script src="fiche.js"></script>
 </body>
 </html>

@@ -44,11 +44,11 @@ class JsonParcelStore:
 
     def save(self, parcelle: Parcel, extraction: Extraction,
              jugement: Jugement) -> ParcelleEnregistree:
-        """Enregistre une parcelle jugée exploitable, et refuse les autres."""
-        if jugement.decision is not Decision.EXPLOITABLE:
+        """Enregistre une parcelle dont la géométrie tient, et refuse les autres."""
+        if not jugement.entre_en_base:
             raise NonEnregistrable(
                 f"{parcelle.document_id} : {jugement}. "
-                "Seule une parcelle exploitable entre en base."
+                "Une parcelle sans géométrie n'a rien à faire en base."
             )
         if parcelle.document_id != extraction.document_id:
             raise NonEnregistrable(

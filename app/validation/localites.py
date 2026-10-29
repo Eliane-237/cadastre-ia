@@ -117,3 +117,14 @@ def distance_m(x: float, y: float, nom: str | None) -> float | None:
     if repere is None:
         return None
     return float(((x - repere[0]) ** 2 + (y - repere[1]) ** 2) ** 0.5)
+
+
+def localite_connue(nom: str | None) -> bool:
+    """Ce nom figure-t-il au répertoire ?
+
+    Sert à départager deux lectures d'un champ de localité, jamais à rejeter une valeur :
+    le répertoire ne couvre qu'une partie des localités sénégalaises, et beaucoup de
+    communes réelles n'y sont pas.
+    """
+    canon = canonical_text(nom)
+    return bool(canon) and canon in LOCALITES

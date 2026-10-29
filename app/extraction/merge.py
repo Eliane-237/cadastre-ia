@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import itertools
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from itertools import combinations
@@ -33,6 +34,8 @@ from app.core.normalize import (
     parse_area,
 )
 from app.core.schema import (
+    CHAMPS_LOCALITE,
+    ETIQUETTES,
     TEXT_FIELDS,
     Area,
     BoundaryPoint,
@@ -294,10 +297,47 @@ def _field_cands(readings: list[DocumentReading], name: str) -> list[_Candidate]
     return out
 
 
+def _sans_etiquette(cands: list[_Candidate], name: str) -> list[_Candidate]:
+    """Écarte les lectures qui ont rendu l'étiquette de la case au lieu de son contenu.
+
+    « Requérant » dans la case Requérant n'est pas un nom de propriétaire : une case ne
+    se nomme pas elle-même. Ce n'est pas un désaccord à arbitrer, c'est une lecture qui
+    n'en est pas une. On ne retire jamais la dernière : sans rien en face, mieux vaut
+    une valeur douteuse que pas de valeur du tout.
+    """
+    libelles = ETIQUETTES.get(name, ())
+    if not libelles:
+        return cands
+    garde = [c for c in cands
+             if (canonical_text(c.raw) or "") not in libelles]
+    return garde if garde else cands
+
+
+def _tranche_par_repertoire(
+    cands: list[_Candidate], name: str, connu: Callable[[str], bool] | None
+) -> list[_Candidate]:
+    """Pour un champ de localité, une localité connue l'emporte sur une inconnue.
+
+    Règle à SENS UNIQUE, et c'est essentiel : le répertoire ne couvre qu'une partie des
+    localités sénégalaises. Une lecture connue bat une inconnue, mais une valeur absente
+    du répertoire n'est jamais écartée pour autant — « Mermoz : Sacré Coeur » est réel
+    et n'y figure pas. Quand aucune ou plusieurs lectures sont connues, on se tait.
+    """
+    if connu is None or name not in CHAMPS_LOCALITE:
+        return cands
+    reconnues = [c for c in cands if c.raw and connu(c.raw)]
+    return reconnues if len(reconnues) == 1 else cands
+
+
 def _fuse_field(
-    readings: list[DocumentReading], name: str, cfg: Settings, report: FusionReport
+    readings: list[DocumentReading], name: str, cfg: Settings, report: FusionReport,
+    connu: Callable[[str], bool] | None = None,
 ) -> Extracted:
     cands = _field_cands(readings, name)
+    # Deux preuves indépendantes des lectures elles-mêmes, dans cet ordre : une étiquette
+    # n'est jamais une valeur, puis le répertoire départage ce qui reste.
+    if len({c.normalized for c in cands if c.normalized}) > 1:
+        cands = _tranche_par_repertoire(_sans_etiquette(cands, name), name, connu)
     chosen, source, conf, conflict = _decide(cands, cfg, FIELD_READER)
     if conflict:
         report.issues.append(
@@ -392,34 +432,100 @@ def _consistent(
     return True
 
 
+def _pose(base: list[list[float]], conf: _Conflict, cand: _Candidate) -> list[tuple[float, float]]:
+    """Le jeu de coordonnées où ce seul désaccord prend cette valeur-là."""
+    coords = [list(xy) for xy in base]
+    coords[conf.point][0 if conf.axis == "x" else 1] = float(cand.normalized)  # type: ignore[arg-type]
+    return [(x, y) for x, y in coords]
+
+
+def _elimine_un_a_un(
+    base: list[list[float]],
+    conflicts: list[_Conflict],
+    area_m2: float | None,
+    sides: list[float | None],
+    cfg: Settings,
+) -> dict[int, _Candidate]:
+    """Les désaccords qu'une lecture seule suffit à trancher.
+
+    Une valeur qui, posée seule dans un document par ailleurs cohérent, le rend
+    incohérent, est fausse : la superficie imprimée la réfute. C'est la même preuve que
+    l'énumération complète, mais appliquée à un désaccord à la fois — donc linéaire, et
+    surtout capable de trancher les cas évidents sans être paralysée par les autres.
+
+    L'énumération exige en effet UNE combinaison cohérente. Quand deux lectures ne
+    diffèrent que d'un centimètre, les deux restent cohérentes, plusieurs combinaisons
+    gagnent, et elle abandonne — en emportant au passage les désaccords de 900 m qu'elle
+    savait pourtant trancher.
+
+    On recommence tant que des valeurs tombent : une coordonnée corrigée affermit la base
+    et peut départager celles qui résistaient.
+    """
+    tranches: dict[int, _Candidate] = {}
+    courant = [list(xy) for xy in base]
+    while True:
+        trouve = False
+        for i, conf in enumerate(conflicts):
+            if i in tranches:
+                continue
+            debout = [c for c in conf.options
+                      if _consistent(_pose(courant, conf, c), area_m2, sides, cfg)]
+            # Aucune option tenable : le document est faux ailleurs, on ne tranche pas.
+            if len(debout) != 1:
+                continue
+            tranches[i] = debout[0]
+            courant[conf.point][0 if conf.axis == "x" else 1] = float(debout[0].normalized)  # type: ignore[arg-type]
+            trouve = True
+        if not trouve:
+            return tranches
+
+
 def arbitrate(
     points: list[BoundaryPoint],
     conflicts: list[_Conflict],
     area_m2: float | None,
     sides: list[float | None],
     cfg: Settings,
-) -> list[_Candidate] | None:
-    """Unique combinaison de lectures qui rend le document cohérent, sinon None.
+) -> dict[int, _Candidate]:
+    """Les désaccords que la géométrie tranche, indexés comme `conflicts`.
+
+    Deux passes. La première élimine un à un ce qui se réfute seul, et c'est elle qui
+    fait le gros du travail. La seconde énumère ce qui reste — forcément peu — pour
+    attraper les désaccords qui se compensent mutuellement, que seule une vue d'ensemble
+    révèle.
 
     Il faut une preuve indépendante des coordonnées : sans surface ni côté imprimés, la
-    géométrie ne peut pas trancher."""
-    if not conflicts or len(conflicts) > cfg.max_conflicts_for_geometry:
-        return None
+    géométrie ne peut rien trancher.
+    """
+    if not conflicts:
+        return {}
     if not area_m2 and not any(d is not None for d in sides):
-        return None
+        return {}
     base = [[p.x.value, p.y.value] for p in points]
     if any(v is None for xy in base for v in xy):
-        return None
+        return {}
+
+    tranches = _elimine_un_a_un(base, conflicts, area_m2, sides, cfg)
+    for i, cand in tranches.items():
+        conf = conflicts[i]
+        base[conf.point][0 if conf.axis == "x" else 1] = float(cand.normalized)  # type: ignore[arg-type]
+
+    restants = [(i, c) for i, c in enumerate(conflicts) if i not in tranches]
+    if not restants or len(restants) > cfg.max_conflicts_for_geometry:
+        return tranches
+
     winners = []
-    for combo in itertools.product(*(c.options for c in conflicts)):
+    for combo in itertools.product(*(c.options for _, c in restants)):
         coords = [list(xy) for xy in base]
-        for conf, cand in zip(conflicts, combo, strict=True):
+        for (_, conf), cand in zip(restants, combo, strict=True):
             coords[conf.point][0 if conf.axis == "x" else 1] = float(cand.normalized)  # type: ignore[arg-type]
         if _consistent([(x, y) for x, y in coords], area_m2, sides, cfg):
             winners.append(list(combo))
             if len(winners) > 1:
-                return None
-    return winners[0] if winners else None
+                return tranches
+    if winners:
+        tranches.update({i: cand for (i, _), cand in zip(restants, winners[0], strict=True)})
+    return tranches
 
 
 # --------------------------------------------------------------------------- entrée
@@ -430,7 +536,11 @@ def fuse(
     paddle: DocumentReading | None,
     qwen: DocumentReading | None,
     cfg: Settings = SETTINGS,
+    connu: Callable[[str], bool] | None = None,
 ) -> tuple[Extraction, FusionReport]:
+    """Les deux lectures en une extraction. `connu` dit si un nom est une localité
+    répertoriée ; l'appelant le fournit, pour que la fusion n'ait pas à connaître la
+    validation."""
     readings = [r for r in (paddle, qwen) if r is not None]
     report = FusionReport()
     pa = paddle.points if paddle else []
@@ -462,7 +572,7 @@ def fuse(
 
     extraction = Extraction(document_id=document_id, points=points)
     for name in TEXT_FIELDS:
-        setattr(extraction, name, _fuse_field(readings, name, cfg, report))
+        setattr(extraction, name, _fuse_field(readings, name, cfg, report, connu))
     extraction.printed_area = _fuse_field(readings, "area", cfg, report)
     labels = [canonical_label(p.label) for p in points]
     extraction.printed_sides = _fuse_sides(readings, labels, len(_ring_points(points)), cfg)
@@ -488,9 +598,6 @@ def _resolve(
     extraction: Extraction, conflicts: list[_Conflict], cfg: Settings, report: FusionReport
 ) -> None:
     pts = extraction.points
-    labels = sorted(
-        {pts[c.point].label for c in conflicts}, key=lambda lab: [p.label for p in pts].index(lab)
-    )
     area = extraction.printed_area.value.m2 if extraction.printed_area.present else None  # type: ignore[union-attr]
     # Seuls les côtés non contestés (une lecture, ou deux identiques) servent de preuve.
     sides = [
@@ -499,37 +606,50 @@ def _resolve(
         else None
         for s in extraction.printed_sides
     ]
-    choice = arbitrate(pts, conflicts, area, sides, cfg)
-    if choice is None:
-        detail = "; ".join(
-            f"{pts[c.point].label}.{c.axis} : "
-            + " / ".join(f"{o.source.value}={o.raw}" for o in c.options)
-            for c in conflicts
-        )
-        report.issues.append(
-            Issue(
-                code="READING_CONFLICT",
-                severity=Severity.WARNING,
-                point_labels=labels,
-                message=f"Lectures divergentes que la géométrie ne départage pas ({detail}) : "
-                "valeur de PaddleOCR-VL gardée, relecture humaine nécessaire.",
-            )
-        )
-        return
-    for conf, cand in zip(conflicts, choice, strict=True):
+    tranches = arbitrate(pts, conflicts, area, sides, cfg)
+    for i, cand in tranches.items():
+        conf = conflicts[i]
         ex: Extracted[float] = getattr(pts[conf.point], conf.axis)
         ex.value = float(cand.normalized)  # type: ignore[arg-type]
         ex.raw_text = cand.raw
         ex.source = Source.GEOMETRY
         ex.confidence = cfg.conf_geometry
-    report.conflicts_resolved = len(conflicts)
+    report.conflicts_resolved = len(tranches)
+
+    def _etiquettes(choisis: list[_Conflict]) -> list[str]:
+        ordre = [p.label for p in pts]
+        return sorted({pts[c.point].label for c in choisis}, key=ordre.index)
+
+    if tranches:
+        report.issues.append(
+            Issue(
+                code="READING_CONFLICT_RESOLVED",
+                severity=Severity.INFO,
+                point_labels=_etiquettes([conflicts[i] for i in tranches]),
+                message=f"{len(tranches)} coordonnée(s) sur {len(conflicts)} lue(s) "
+                "différemment : la superficie et les côtés imprimés désignent une seule "
+                "valeur tenable, elle est retenue.",
+            )
+        )
+
+    restants = [c for i, c in enumerate(conflicts) if i not in tranches]
+    if not restants:
+        return
+    # On ne signale que ce qui reste vraiment en suspens. Noyer les quelques désaccords
+    # qui demandent un œil humain au milieu de ceux que la géométrie a tranchés produit
+    # une liste qu'on finit par ne plus lire.
+    detail = "; ".join(
+        f"{pts[c.point].label}.{c.axis} : "
+        + " / ".join(f"{o.source.value}={o.raw}" for o in c.options)
+        for c in restants
+    )
     report.issues.append(
         Issue(
-            code="READING_CONFLICT_RESOLVED",
-            severity=Severity.INFO,
-            point_labels=labels,
-            message=f"{len(conflicts)} coordonnée(s) lue(s) différemment : "
-            "une seule combinaison est "
-            "cohérente avec la superficie et les côtés imprimés, elle est retenue.",
+            code="READING_CONFLICT",
+            severity=Severity.WARNING,
+            point_labels=_etiquettes(restants),
+            message=f"{len(restants)} lecture(s) divergente(s) que la géométrie ne "
+            f"départage pas ({detail}) : valeur de PaddleOCR-VL gardée, relecture "
+            "humaine nécessaire.",
         )
     )

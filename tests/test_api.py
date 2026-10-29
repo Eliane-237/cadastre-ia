@@ -59,12 +59,25 @@ def test_enregistrer_puis_relire(client):
     assert client.get("/health").json()["parcelles"] == 1
 
 
-def test_une_extraction_a_relire_est_refusee(client):
+def test_un_doute_nempeche_pas_lenregistrement(client):
+    """Sans systeme de coordonnees imprime, le datum reste inconnu : la parcelle part
+    « a relire », mais l'agent peut l'inscrire. Elle entre en base marquee non
+    comparable — la refuser definitivement ne servirait personne."""
     corps = _corps()
-    corps["extraction"]["datum"] = "inconnu"          # datum absent : revue obligatoire
+    corps["extraction"]["datum"] = "inconnu"
     r = client.post("/parcelles", json=corps)
-    assert r.status_code == 409
-    assert "exploitable" in r.json()["detail"]
+    assert r.status_code == 201, r.text
+    assert r.json()["jugement"]["decision"] == "a_relire"
+    assert r.json()["jugement"]["entre_en_base"] is True
+    assert client.get("/parcelles/D").json()["parcelle"]["comparable"] is False
+
+
+def test_une_geometrie_impossible_reste_refusee(client):
+    """La seule porte qui reste fermee : sans polygone, il n'y a rien a inscrire."""
+    corps = _corps()
+    corps["extraction"]["points"] = corps["extraction"]["points"][:2]
+    r = client.post("/parcelles", json=corps)
+    assert r.status_code == 422
     assert client.get("/parcelles").json()["total"] == 0
 
 

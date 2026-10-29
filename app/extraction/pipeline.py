@@ -24,6 +24,7 @@ from app.extraction.locators.area import best_region as aire_best_region
 from app.extraction.locators.table import best_region, crop_region
 from app.extraction.merge import fuse
 from app.extraction.reading import DocumentReading, Reader, merge_pages
+from app.validation.localites import localite_connue
 from app.validation.rules import referentiel_de, validate
 
 
@@ -179,7 +180,9 @@ def run(
 
     pr = merge_pages(paddle_pages) if paddle_pages and "paddle" not in errors else None
     qr = merge_pages(qwen_pages) if qwen_pages and "qwen" not in errors else None
-    extraction, report = fuse(document_id, pr, qr, cfg)
+    # Le répertoire des localités est fourni ici, et non importé par la fusion : c'est
+    # l'orchestrateur qui connaît la validation, pas l'extraction.
+    extraction, report = fuse(document_id, pr, qr, cfg, connu=localite_connue)
     issues = list(report.issues)
     for name, err in errors.items():
         issues.append(

@@ -79,6 +79,35 @@ TEXT_FIELDS: tuple[str, ...] = (
     "disclaimer",         # ex. « Ce plan ne constitue pas un titre de propriété »
 )
 
+# L'étiquette imprimée au-dessus ou devant chaque case. Un lecteur qui rend l'étiquette
+# au lieu de son contenu n'a pas lu une valeur — c'est arrivé sur « Requérant », rendu
+# tel quel comme nom du propriétaire. Aucun arbitrage n'est nécessaire dans ce cas : une
+# case ne se nomme pas elle-même.
+#
+# Plusieurs libellés par champ, les formulaires variant d'un livre foncier à l'autre.
+# Comparés après `canonical_text` : sans accents, sans ponctuation, en bas de casse.
+ETIQUETTES: dict[str, tuple[str, ...]] = {
+    "title_number":      ("titre n", "titre no", "titre numero"),
+    "mother_title":      ("titre mere", "titre mere n"),
+    "lot":               ("lot", "lot n"),
+    "subdivision":       ("lotissement",),
+    "requisition":       ("requisition", "requisition n"),
+    "land_registry":     ("livre foncier", "livre foncier de"),
+    "nicad":             ("nicad",),
+    "region":            ("region",),
+    "department":        ("departement", "dept"),
+    "arrondissement":    ("arrondissement", "arrond"),
+    "commune":           ("commune", "com ville", "ca cr"),
+    "owner":             ("requerant", "proprietaire"),
+    "coordinate_system": ("systeme de coordonnees", "systeme"),
+    "scale":             ("echelle",),
+    "certified_on":      ("certifie conforme", "date"),
+}
+
+# Champs dont la valeur est un nom de localité : un répertoire peut alors départager
+# deux lectures, une localité connue l'emportant sur une inconnue.
+CHAMPS_LOCALITE: tuple[str, ...] = ("region", "department", "arrondissement", "commune")
+
 # Champs dont l'absence ou le doute justifie une relecture humaine. Les autres
 # (échelle, date, mention de portée) sont utiles sans être bloquants.
 CORE_FIELDS: tuple[str, ...] = (

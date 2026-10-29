@@ -20,9 +20,9 @@ from app.core.schema import DATUM_INCONNU, REVIEW_THRESHOLD, Extraction, Severit
 
 
 class Decision(str, Enum):
-    EXPLOITABLE = "exploitable"   # peut être enregistrée et confrontée
-    A_RELIRE = "a_relire"         # un humain doit trancher avant
-    REFUSE = "refuse"             # inexploitable en l'état
+    EXPLOITABLE = "exploitable"   # rien à signaler
+    A_RELIRE = "a_relire"         # des doutes à regarder, mais l'agent peut passer outre
+    REFUSE = "refuse"             # la géométrie ne se construit pas : rien à enregistrer
 
 
 @dataclass(frozen=True)
@@ -34,7 +34,16 @@ class Jugement:
 
     @property
     def entre_en_base(self) -> bool:
-        return self.decision is Decision.EXPLOITABLE
+        """Seul un refus ferme la base. Un doute s'affiche, il n'interdit pas.
+
+        Les alertes venues de la lecture — les deux modèles qui divergent sur un champ —
+        ne peuvent être levées par aucune correction : le document n'est plus là pour
+        être relu. Les traiter comme bloquantes condamnait définitivement tout titre en
+        portant une, et disait à l'agent de trancher ce qu'il venait justement de
+        trancher. Un refus, lui, se justifie seul : sans géométrie, il n'y a pas de
+        parcelle à inscrire.
+        """
+        return self.decision is not Decision.REFUSE
 
     def __str__(self) -> str:
         if not self.raisons:
@@ -45,7 +54,9 @@ class Jugement:
 def juger(extraction: Extraction, seuil: float = REVIEW_THRESHOLD) -> Jugement:
     """Traduit les anomalies constatées en une décision unique.
 
-    Trois niveaux, et l'ordre compte : on refuse d'abord, on doute ensuite.
+    Trois niveaux, et l'ordre compte : on refuse d'abord, on doute ensuite. Seul le
+    refus ferme la base — voir `Jugement.entre_en_base`. Le doute est rendu avec ses
+    raisons pour que l'agent les lise et décide, pas pour l'arrêter.
     """
     raisons: list[str] = []
 

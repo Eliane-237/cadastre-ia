@@ -150,10 +150,13 @@ function poserCarte(geojson, centre) {
 
 
 function poserVerdict(j) {
+  // Un doute s'affiche, il n'interdit pas : l'agent lit les raisons et décide. Seul
+  // un refus ferme la base, et il se justifie seul — sans géométrie, il n'y a pas de
+  // parcelle à inscrire.
   const titres = {
-    exploitable: 'Exploitable — la parcelle peut entrer en base',
-    a_relire:    'À relire — une relecture est nécessaire avant enregistrement',
-    refuse:      'Refusé — le document ne peut pas être enregistré en l\'état',
+    exploitable: 'Exploitable — rien à signaler',
+    a_relire:    'À vérifier avant d\'enregistrer — vous pouvez passer outre',
+    refuse:      'Refusé — le polygone ne se construit pas sur ces coordonnées',
   };
   document.getElementById('verdict').innerHTML = `
     <div class="verdict verdict--${j.decision}">

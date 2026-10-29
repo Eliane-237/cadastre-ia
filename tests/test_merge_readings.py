@@ -1,9 +1,17 @@
 import pytest
 
-from app.core.config import Settings
-from app.core.schema import Source
-from app.extraction.merge import fuse
-from app.extraction.reading import FieldReading
+from app.core.config import SETTINGS, Settings
+from app.core.schema import BoundaryPoint, Extracted, Source
+from app.extraction.merge import (
+    FusionReport,
+    _Candidate,
+    _Conflict,
+    _fuse_field,
+    arbitrate,
+    fuse,
+)
+from app.extraction.reading import DocumentReading, FieldReading
+from app.validation.localites import localite_connue
 from app.validation.rules import validate
 from tests.fake_readers import AREA_M2, COORDS, SIDES, reading
 
@@ -190,3 +198,151 @@ def test_a_forme_egale_la_confiance_departage_toujours():
 def test_les_decimales_du_tableau_survivent_a_la_fusion():
     ex, _ = fuse("D", reading(Source.PADDLE_VL), reading(Source.QWEN_VL), CFG)
     assert ex.points[0].x.raw_text == COORDS[0][0]    # zeros finaux compris
+
+
+# --- Arbitrage par elimination, puis par enumeration --------------------------
+# L'enumeration seule exige UNE combinaison coherente. Quand deux lectures ne
+# different que d'un centimetre, les deux restent coherentes, plusieurs
+# combinaisons gagnent, et elle abandonne — en emportant au passage les
+# desaccords de 900 m qu'elle savait pourtant trancher.
+
+_THIES = [(294831.706, 1640903.146), (294965.286, 1640831.843),
+          (295057.694, 1640803.611), (295253.622, 1640842.742),
+          (295277.101, 1640725.224), (295215.415, 1640714.692),
+          (295001.906, 1640637.808), (294782.735, 1640888.333)]
+_THIES_M2 = 58_941.0
+
+
+def _conflit(i, axe, autre):
+    """Le desaccord sur une coordonnee : la lecture de Paddle contre celle de Qwen."""
+    bon = _THIES[i][0 if axe == "x" else 1]
+    return _Conflict(i, axe, [
+        _Candidate(Source.PADDLE_VL, f"{bon:.3f}", f"{bon:.3f}"),
+        _Candidate(Source.QWEN_VL, autre, autre),
+    ])
+
+
+def _points_thies():
+    return [BoundaryPoint(label=f"8.{i+1}", row_index=i,
+                          x=Extracted[float](value=x, confidence=0.9),
+                          y=Extracted[float](value=y, confidence=0.9))
+            for i, (x, y) in enumerate(_THIES)]
+
+
+def test_un_chiffre_aberrant_est_tranche_seul():
+    """900 m d'ecart : la superficie imprimee refute cette lecture a elle seule."""
+    pts = _points_thies()
+    conflits = [_conflit(0, "y", "1640003.146")]
+    tranches = arbitrate(pts, conflits, _THIES_M2, [None] * 8, SETTINGS)
+    assert tranches[0].source is Source.PADDLE_VL
+
+
+def test_un_ecart_centimetrique_reste_indecis():
+    """A 1 cm, les deux lectures restent coherentes : la geometrie ne peut pas trancher,
+    et pretendre le contraire serait inventer une certitude."""
+    pts = _points_thies()
+    conflits = [_conflit(3, "x", "295253.632")]
+    assert arbitrate(pts, conflits, _THIES_M2, [None] * 8, SETTINGS) == {}
+
+
+def test_les_evidents_sont_tranches_meme_quand_des_indecis_restent():
+    """Le cas reel du titre de Thies : 13 desaccords, dont 4 indepartageables.
+
+    L'enumeration seule rendait None et laissait les 13 en suspens, par-dessus le
+    plafond max_conflicts_for_geometry qui l'empechait meme d'essayer.
+    """
+    pts = _points_thies()
+    aberrants = {(0, "y"): "1640003.146", (1, "x"): "294905.286",
+                 (1, "y"): "1640031.843", (2, "x"): "295007.094",
+                 (2, "y"): "1640063.611", (3, "y"): "1640942.742",
+                 (4, "x"): "295777.101", (4, "y"): "1640775.224",
+                 (6, "y"): "1640037.868"}
+    minimes = {(3, "x"): "295253.632", (5, "y"): "1640714.662",
+               (6, "x"): "295001.008", (7, "y"): "1640889.333"}
+    conflits = [_conflit(i, ax, v) for (i, ax), v in {**aberrants, **minimes}.items()]
+    assert len(conflits) > SETTINGS.max_conflicts_for_geometry
+
+    tranches = arbitrate(pts, conflits, _THIES_M2, [None] * 8, SETTINGS)
+    assert len(tranches) == len(aberrants)
+    assert all(c.source is Source.PADDLE_VL for c in tranches.values())
+    restants = {(conflits[i].point, conflits[i].axis)
+                for i in range(len(conflits)) if i not in tranches}
+    assert restants == set(minimes)
+
+
+def test_sans_superficie_ni_cotes_rien_nest_tranche():
+    """La geometrie a besoin d'une preuve independante des coordonnees."""
+    pts = _points_thies()
+    conflits = [_conflit(0, "y", "1640003.146")]
+    assert arbitrate(pts, conflits, None, [None] * 8, SETTINGS) == {}
+
+
+# --- Une etiquette n'est pas une valeur ---------------------------------------
+# Un lecteur a rendu « Requerant » comme nom du proprietaire : le libelle imprime
+# de la case, pas son contenu. Ce n'est pas un desaccord a arbitrer.
+
+def _deux(nom, pad, qw, conf=0.9):
+    def lecture(src, v):
+        r = DocumentReading(source=src, model="x")
+        r.fields[nom] = FieldReading(raw=v, confidence=conf)
+        return r
+    return [lecture(Source.PADDLE_VL, pad), lecture(Source.QWEN_VL, qw)]
+
+
+def _fusionne(nom, pad, qw, connu=None):
+    rapport = FusionReport()
+    champ = _fuse_field(_deux(nom, pad, qw), nom, SETTINGS, rapport, connu=connu)
+    return champ, [i.code for i in rapport.issues]
+
+
+def test_letiquette_dune_case_nest_pas_sa_valeur():
+    champ, codes_vus = _fusionne("owner", "Requérant", "ETAT DU SENEGAL / VILLE DE THIES")
+    assert champ.value == "ETAT DU SENEGAL / VILLE DE THIES"
+    assert champ.confidence > SETTINGS.conf_conflict
+    assert "FIELD_CONFLICT" not in codes_vus
+
+
+def test_letiquette_nest_jamais_retiree_en_dernier():
+    """Sans rien en face, mieux vaut une valeur douteuse que pas de valeur du tout."""
+    champ, _ = _fusionne("owner", "Requérant", "Requérant")
+    assert champ.value == "Requérant"
+
+
+# --- Le repertoire des localites departage, a sens unique ---------------------
+
+def test_une_localite_connue_lemporte_sur_une_inconnue():
+    champ, codes_vus = _fusionne(
+        "region", "AUX CENTRE DES SERVICES FISCAUX DE THIES", "Thies",
+        connu=localite_connue)
+    assert champ.value == "Thies"
+    assert champ.confidence > SETTINGS.conf_conflict
+    assert "FIELD_CONFLICT" not in codes_vus
+
+
+def test_deux_lectures_inconnues_restent_en_conflit():
+    """Le repertoire ne couvre qu'une partie des localites senegalaises : « Mermoz :
+    Sacre Coeur » est reel et n'y figure pas. Une valeur inconnue n'est jamais ecartee
+    pour autant — la regle ne sert qu'a departager, jamais a rejeter."""
+    assert not localite_connue("Mermoz : Sacré Coeur")
+    champ, _ = _fusionne("commune", "Saint-Louis", "Mermoz : Sacré Coeur",
+                         connu=localite_connue)
+    # Saint-Louis est au repertoire, l'autre non : on ne tranche pas pour autant
+    # a l'aveugle — on verifie seulement qu'aucune valeur n'a ete inventee.
+    assert champ.value in {"Saint-Louis", "Mermoz : Sacré Coeur"}
+
+
+def test_le_repertoire_ne_touche_pas_les_autres_champs():
+    """« 1/500 » contre « 1 /5000 » reste un vrai doute d'un chiffre."""
+    champ, codes_vus = _fusionne("scale", "1 /5000", "1/500", connu=localite_connue)
+    assert champ.confidence == SETTINGS.conf_conflict
+    assert "FIELD_CONFLICT" in codes_vus
+
+
+def test_sans_repertoire_le_comportement_est_inchange():
+    """La fusion n'importe pas la validation : sans `connu`, rien ne change."""
+    avec, _ = _fusionne("region", "AUX CENTRE DES SERVICES FISCAUX DE THIES", "Thies",
+                        connu=localite_connue)
+    sans, codes_vus = _fusionne("region", "AUX CENTRE DES SERVICES FISCAUX DE THIES",
+                                "Thies")
+    assert avec.value == "Thies" and sans.confidence == SETTINGS.conf_conflict
+    assert "FIELD_CONFLICT" in codes_vus

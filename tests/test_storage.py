@@ -38,11 +38,13 @@ def test_aller_retour(base):
     assert relue.jugement.decision is Decision.EXPLOITABLE
 
 
-def test_une_parcelle_a_relire_est_refusee(base):
+def test_une_parcelle_a_relire_entre_en_base(base):
+    """Un doute s'affiche, il n'interdit pas : les alertes venues de la lecture ne
+    peuvent etre levees par aucune correction, et bloquer dessus condamnait
+    definitivement tout titre en portant une."""
     p, ex, _ = _couple()
-    with pytest.raises(NonEnregistrable, match="exploitable"):
-        base.save(p, ex, Jugement(Decision.A_RELIRE, ["datum inconnu"]))
-    assert base.all() == []
+    base.save(p, ex, Jugement(Decision.A_RELIRE, ["datum inconnu"]))
+    assert [x.document_id for x in base.all()] == [p.document_id]
 
 
 def test_un_refus_est_refuse(base):

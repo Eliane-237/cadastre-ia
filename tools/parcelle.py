@@ -1,8 +1,8 @@
 """Construit le polygone d'un document et le donne à voir.
 
-    python tools/parcelle.py data/annotations/D10.json
+    python tools/parcelle.py reports/readings/tf.json
     python tools/parcelle.py reports/readings/tf.json --geojson reports/tf.geojson
-    python tools/parcelle.py data/annotations --all
+    python tools/parcelle.py reports/readings --all
 
 Le GeoJSON s'ouvre dans QGIS, ou sur geojson.io si `pyproj` est installé : la norme
 GeoJSON impose le WGS84, et sans reprojection les coordonnées restent en UTM 28N.
@@ -18,10 +18,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.schema import (  # noqa: E402
-    DATUM_RRS04,
-    Area,
-    BoundaryPoint,
-    Extracted,
     Extraction,
 )
 from app.geospatial.export import to_geojson  # noqa: E402
@@ -30,34 +26,13 @@ from app.geospatial.render import RenduIndisponible, apercu_png  # noqa: E402
 from app.geospatial.render import libelles_imprimes as etiquettes  # noqa: E402
 
 
-def _depuis_annotation(donnees: dict) -> Extraction:
-    pts = [
-        BoundaryPoint(
-            label=p["label"], row_index=i,
-            x=Extracted[float](value=float(p["x"]), confidence=1.0, raw_text=p["x"]),
-            y=Extracted[float](value=float(p["y"]), confidence=1.0, raw_text=p["y"]),
-        )
-        for i, p in enumerate(donnees["points"])
-    ]
-    aire = donnees.get("printed_area")
-    return Extraction(
-        document_id=donnees["document_id"], points=pts, datum=DATUM_RRS04,
-        printed_area=Extracted[Area](value=Area(**aire), confidence=1.0)
-        if aire else Extracted[Area](),
-        title_number=Extracted[str](value=donnees["title_number"], confidence=1.0)
-        if donnees.get("title_number") else Extracted[str](),
-    )
-
-
 def charge(chemin: Path) -> Extraction:
-    """Une annotation ou une extraction, indifféremment."""
+    """Une extraction, telle que les modèles l'ont produite."""
     donnees = json.loads(chemin.read_text(encoding="utf-8"))
-    if "annotation_version" in donnees:
-        return _depuis_annotation(donnees)
     if "document_id" not in donnees:
         # Un fichier de lectures brutes (`--readings`) depose parmi les extractions :
         # il a les lecteurs en cles de premier niveau, pas de document.
-        raise ValueError("ni annotation ni extraction (lectures brutes ?)")
+        raise ValueError("ce n'est pas une extraction (lectures brutes ?)")
     return Extraction.model_validate(donnees)
 
 
@@ -105,7 +80,7 @@ def dessine(parcelles: list[Parcel], dossier: Path,
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("source", type=Path,
-                    help="Un JSON d'annotation ou d'extraction, ou un dossier.")
+                    help="Un JSON d'extraction, ou un dossier qui en contient.")
     ap.add_argument("--all", action="store_true", help="Tous les JSON du dossier.")
     ap.add_argument("--geojson", type=Path, help="Écrit les polygones pour QGIS.")
     ap.add_argument("--png", type=Path, nargs="?", const=Path("reports/parcelles"),

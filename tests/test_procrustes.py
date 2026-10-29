@@ -2,23 +2,18 @@
 parcelle mise a l'echelle, tournee, deplacee, et lue avec le bruit d'un pointage
 d'etiquette au pixel pres."""
 
-import json
 import math
-from pathlib import Path
 
 import numpy as np
 import pytest
 
 from app.geospatial.procrustes import RecalageImpossible, concordent, superpose
-
-ANNOTATIONS = Path("data/annotations")
-pytestmark = pytest.mark.skipif(not ANNOTATIONS.exists(), reason="corpus annoté absent")
+from tests.fake_readers import sommets
 
 
 @pytest.fixture
 def dakar():
-    a = json.loads((ANNOTATIONS / "D12.json").read_text(encoding="utf-8"))
-    return [(float(p["x"]), float(p["y"])) for p in a["points"]]
+    return sommets("dakar")           # 12 bornes, lues par les modèles
 
 
 def plan(points, *, echelle, angle_deg, dx=0.0, dy=0.0, bruit_relatif=0.0,
@@ -68,8 +63,8 @@ def test_parcelle_retournee_detectee(dakar):
 
 
 def test_autre_parcelle_rejetee(dakar):
-    autre = json.loads((ANNOTATIONS / "D14.json").read_text(encoding="utf-8"))
-    douze = [(float(p["x"]), float(p["y"])) for p in autre["points"]][:12]
+    """Deux terrains differents, pointes pareil, ne doivent pas se superposer."""
+    douze = sommets("nguekhokh")[:12]
     r = superpose(dakar, douze)
     assert r.residu_pct > 10 and not concordent(r)
 

@@ -1,6 +1,3 @@
-import json
-from pathlib import Path
-
 import pytest
 
 from app.core.schema import (
@@ -15,8 +12,7 @@ from app.core.schema import (
     Severity,
 )
 from app.geospatial.parcel import GeometryRefusee, Parcel, parcel
-
-ANNOTATIONS = Path("data/annotations")
+from tests.fake_readers import REELLES, extraction_reelle
 
 
 def ex(v):
@@ -78,23 +74,15 @@ def test_geometrie_refusee(points, aire, issues, motif):
         parcel(extraction(points, aire, issues=issues))
 
 
-def _annotation(nom):
-    a = json.loads((ANNOTATIONS / nom).read_text(encoding="utf-8"))
-    aire = a.get("printed_area")
-    return extraction([(float(p["x"]), float(p["y"])) for p in a["points"]],
-                      Area(**aire) if aire else None)
+@pytest.mark.parametrize("nom", sorted(REELLES))
+def test_parcelles_reelles(nom):
+    """Le polygone construit depuis ce que les modèles ont lu retrouve la superficie
+    imprimée sur le document.
 
-
-@pytest.mark.skipif(not ANNOTATIONS.exists(), reason="corpus annoté absent")
-@pytest.mark.parametrize("nom, tolerance_pct", [
-    ("D10.json", 0.01),   # Thiès, 8 bornes
-    ("D11.json", 0.10),   # Mermoz, 4 bornes
-    ("D12.json", 0.05),   # Dakar, 12 bornes
-    ("D13.json", 0.05),   # Grand Dakar, 4 bornes
-    ("D14.json", 0.40),   # Ngaparou, 15 bornes — annotation sous réserve
-])
-def test_parcelles_reelles(nom, tolerance_pct):
-    """Chaque parcelle du corpus retrouve sa superficie imprimée."""
-    p = parcel(_annotation(nom))
+    C'est la seule confrontation qui vaille : la superficie imprimée est portée par le
+    titre lui-même, alors qu'une vérité terrain saisie à la main ne juge l'extraction
+    que contre une autre lecture humaine, faillible elle aussi.
+    """
+    p = parcel(extraction_reelle(nom))
     assert p.printed_m2
-    assert abs(p.area_m2 - p.printed_m2) / p.printed_m2 * 100 <= tolerance_pct
+    assert abs(p.area_m2 - p.printed_m2) / p.printed_m2 * 100 <= 0.10

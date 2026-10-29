@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from app.core.schema import Extraction
 from app.geospatial.overlap import Recouvrement
 from app.geospatial.parcel import Parcel
-from app.validation.parties import Concordance, Rapprochement
 from app.validation.verdict import Jugement
 
 
@@ -80,40 +79,6 @@ class RecouvrementOut(BaseModel):
                    conflit=r.conflit, message=r.message)
 
 
-class RapprochementOut(BaseModel):
-    """Deux écritures qui pourraient désigner la même partie. Jamais une conclusion."""
-
-    niveau: str
-    nom: str
-    nom_voisin: str
-    document: str
-    score: float
-    message: str
-
-    @classmethod
-    def de(cls, r: Rapprochement) -> RapprochementOut:
-        return cls(niveau=r.niveau.value, nom=r.nom, nom_voisin=r.nom_voisin,
-                   document=r.document, score=round(r.score, 3), message=r.message)
-
-
-class ConcordanceOut(BaseModel):
-    """Deux titres liés, et ce que leurs requérants en disent."""
-
-    lien: str
-    identite: str
-    document: str
-    nom: str | None = None
-    nom_voisin: str | None = None
-    score: float
-    a_instruire: bool
-    reserve: str | None = None
-    message: str
-
-    @classmethod
-    def de(cls, c: Concordance) -> ConcordanceOut:
-        return cls(lien=c.lien.value, identite=c.identite.value, document=c.document,
-                   nom=c.nom, nom_voisin=c.nom_voisin, score=round(c.score, 3),
-                   a_instruire=c.a_instruire, reserve=c.reserve, message=c.message)
 
 
 class LectureOut(BaseModel):

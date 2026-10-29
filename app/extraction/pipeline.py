@@ -24,7 +24,7 @@ from app.extraction.locators.area import best_region as aire_best_region
 from app.extraction.locators.table import best_region, crop_region
 from app.extraction.merge import fuse
 from app.extraction.reading import DocumentReading, Reader, merge_pages
-from app.validation.rules import datum_for, validate
+from app.validation.rules import referentiel_de, validate
 
 
 @dataclass
@@ -200,9 +200,10 @@ def run(
     else:
         issues.extend(validate(extraction, cfg))
     extraction.issues = issues
-    # Le référentiel derrière le système imprimé. Sans lui la parcelle reste « incomparable »
-    # et aucun chevauchement ne peut être cherché : c'est la porte d'entrée de tout l'aval.
-    extraction.datum = datum_for(
+    # Le fuseau ET le référentiel, lus séparément sur le système imprimé. Sans le datum
+    # la parcelle reste « incomparable » et aucun chevauchement ne peut être cherché ;
+    # sans le bon fuseau, elle se pose à des centaines de kilomètres de son terrain.
+    extraction.crs, extraction.datum = referentiel_de(
         extraction.coordinate_system.value if extraction.coordinate_system.present else None
     )
 

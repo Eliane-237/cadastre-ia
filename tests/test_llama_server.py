@@ -12,7 +12,6 @@ from app.document.preprocess import apply_orientation
 from app.extraction.pipeline import run
 from app.extraction.readers.paddle import PaddleVLReader
 from app.extraction.readers.prompt import json_schema
-from eval import evaluate
 from tests.fake_readers import FakeReader, reading
 from tests.test_extract import scan  # noqa: F401 - fixture
 
@@ -89,43 +88,6 @@ def test_relecture_du_tableau_desactivable(scan):  # noqa: F811
     cfg = dataclasses.replace(SETTINGS, table_rescan=False)
     run(scan, paddle=_paddle_qui_localise_le_tableau(), qwen=q, cfg=cfg)
     assert len(q.seen) == 1, "seule la page est lue"
-
-
-def test_deux_passes_completent_les_lectures(tmp_path, monkeypatch):
-    from app.review.annotation import AnnotatedPoint, Annotation, save_annotation
-
-    raw, ann, out = tmp_path / "raw", tmp_path / "ann", tmp_path / "rep"
-    raw.mkdir()
-    (raw / "D01.png").write_bytes(b"")
-    save_annotation(
-        Annotation(
-            document_id="D01",
-            image="D01.png",
-            points=[AnnotatedPoint(label="B1", x="381210.57", y="1564042.96")],
-        ),
-        ann,
-    )
-    p = reading(Source.PADDLE_VL)
-    p.orientation_deg = 180
-    calls = []
-
-    def fake_run(img, doc_id, *, cfg, use_paddle, use_qwen, orientation_deg):
-        calls.append((use_paddle, use_qwen, orientation_deg))
-        readings = {}
-        if use_paddle:
-            readings["paddle_vl"] = p
-        if use_qwen:
-            readings["qwen_vl"] = reading(Source.QWEN_VL)
-        return types.SimpleNamespace(readings=readings)
-
-    monkeypatch.setattr(evaluate, "run", fake_run)
-    evaluate.main(raw, ann, out, replay=False, only="paddle")
-    evaluate.main(raw, ann, out, replay=False, only="qwen")
-    assert calls == [(True, False, None), (False, True, 180)]
-    cached = json.loads((out / "readings" / "D01.json").read_text())
-    assert set(cached) == {"paddle_vl", "qwen_vl"}
-    report = json.loads((out / "evaluation.json").read_text())
-    assert report["summary"]["fusion"]["values"] == 2
 
 
 def test_verification_des_serveurs(capsys):

@@ -1,8 +1,8 @@
 """Confronte des parcelles entre elles : recouvrement, et superposition procustéenne.
 
-    python tools/confronter.py data/annotations --all
+    python tools/confronter.py reports/readings --all
     python tools/confronter.py A.json B.json --procruste
-    python tools/confronter.py data/annotations --all --png reports/confrontations
+    python tools/confronter.py reports/readings --all --png reports/confrontations
 
 Le système ne déclare jamais une fraude. Il constate un recouvrement et le qualifie ;
 dire si c'est une fraude, une erreur de levé ou un morcellement relève de l'humain.

@@ -96,7 +96,12 @@ class Settings:
     locality_region_km: float = 150.0
     # Plages plausibles en UTM 28N pour le Sénégal (m). Larges à dessein : elles écartent les
     # lectures absurdes, pas les parcelles inhabituelles. À resserrer avec les données du cadastre.
-    easting_range: tuple[float, float] = (100_000.0, 900_000.0)
+    # Un fuseau UTM fait 6° de large : son easting ne sort pas de 165 000 – 835 000 m,
+    # et c'est vrai de tous les fuseaux. Une valeur au-dela signifie que le point est
+    # hors du fuseau declare — le plus souvent parce que le fuseau est faux, pas la
+    # coordonnee. L'ancienne plage (100 000 – 900 000) laissait passer 885 436, qui est
+    # un point de l'est du Senegal, en realite dans le fuseau 29N.
+    easting_range: tuple[float, float] = (165_000.0, 835_000.0)
     northing_range: tuple[float, float] = (1_300_000.0, 1_900_000.0)
     # Étendue maximale d'une parcelle (m) : au-delà, un sommet est probablement mal lu.
     max_parcel_extent_m: float = 10_000.0

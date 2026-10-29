@@ -99,7 +99,14 @@ def compare(a: Parcel, b: Parcel, cfg: Settings = SETTINGS) -> Recouvrement | No
     if not (a.comparable and b.comparable):
         inconnu = a.document_id if not a.comparable else b.document_id
         raise NonComparable(f"{inconnu} : datum inconnu, la confrontation n'a pas de sens.")
-    if a.crs != b.crs or a.datum != b.datum:
+    # Deux causes distinctes, et l'agent doit savoir laquelle : un fuseau different
+    # deplace la parcelle de centaines de kilometres, un datum different d'un demi-metre.
+    if a.crs != b.crs:
+        raise NonComparable(
+            f"{a.document_id} et {b.document_id} ne sont pas dans le même fuseau "
+            f"({a.crs} / {b.crs}) : leurs coordonnées ne se comparent pas directement."
+        )
+    if a.datum != b.datum:
         raise NonComparable(
             f"{a.document_id} et {b.document_id} ne sont pas dans le même référentiel "
             f"({a.datum} / {b.datum})."

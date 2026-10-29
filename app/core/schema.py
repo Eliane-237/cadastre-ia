@@ -20,6 +20,20 @@ from app.core.config import SETTINGS
 T = TypeVar("T")
 
 UTM_28N = "EPSG:32628"
+UTM_29N = "EPSG:32629"
+
+# Le Sénégal s'étend sur deux fuseaux UTM : le 28N jusqu'à 12°O, le 29N au-delà
+# (est de Tambacounda, Kédougou, Saraya). La quasi-totalité des titres sont en 28N, mais
+# lire un titre de l'est comme du 28N pose la parcelle 652 km à côté — sans que ni sa
+# forme, ni sa superficie, ni ses côtés ne changent d'un centimètre. Aucun contrôle
+# géométrique ne peut donc rattraper un fuseau faux ; seul l'easting le trahit.
+FUSEAUX: dict[str, str] = {"28": UTM_28N, "29": UTM_29N}
+
+# Fuseau supposé quand le document ne l'imprime pas, ce qui est le cas le plus courant :
+# un titre porte « RRS 04 », qui nomme le référentiel, pas la projection. L'hypothèse est
+# écrite ici plutôt que dissimulée dans un défaut, et le contrôle de plage des eastings
+# est là pour buter dessus quand elle est fausse.
+FUSEAU_DEFAUT = UTM_28N
 
 # Le RRS04 — Réseau de Référence du Sénégal, établi en 2004 par la DTGC avec l'IGN —
 # est une réalisation locale de l'ITRF2000 à l'époque 2004,55, sur l'ellipsoïde GRS80,
@@ -40,7 +54,6 @@ REVIEW_CODES: frozenset[str] = frozenset({"TITRE_EGAL_MERE"})
 REVIEW_THRESHOLD = SETTINGS.review_threshold  # valeur de travail, voir app/core/config.py
 
 # Champs texte du document, dans l'ordre du formulaire. Une case imprimée = un champ.
-# Partagé avec app/review/annotation.py pour que la vérité terrain ait exactement la même forme.
 TEXT_FIELDS: tuple[str, ...] = (
     "title_number",       # « TITRE N° » — null si la case est vide
     "mother_title",       # « Titre Mère n° »
@@ -176,7 +189,10 @@ class Extraction(BaseModel):
     """Résultat complet pour un document."""
     schema_version: str = SCHEMA_VERSION
     document_id: str
-    crs: str = UTM_28N                           # projection ; voir `datum` pour le référentiel
+    # Deux questions distinctes, et un document peut répondre à l'une sans l'autre :
+    # `crs` dit OÙ projeter (quel fuseau), `datum` dit SUR QUEL RÉFÉRENTIEL. « UTM zone
+    # 28N » donne le premier sans le second ; « RRS 04 » donne le second sans le premier.
+    crs: str = FUSEAU_DEFAUT
     datum: str = DATUM_INCONNU                   # renseigné par `validated()` d'après le document
 
         # Identification du titre — une case du formulaire par champ, jamais de concaténation.

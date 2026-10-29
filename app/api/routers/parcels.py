@@ -11,52 +11,21 @@ from fastapi import APIRouter, HTTPException, Response
 
 from app.api.deps import depot
 from app.api.schemas import (
-    ConcordanceOut,
     EnregistrementIn,
     JugementOut,
     ParcelleOut,
-    RapprochementOut,
     RecouvrementOut,
 )
 from app.geospatial.export import centre_wgs84, to_geojson
-from app.geospatial.overlap import NonComparable, compare, scan
+from app.geospatial.overlap import NonComparable, scan
 from app.geospatial.parcel import GeometryRefusee, parcel
 from app.geospatial.render import RenduIndisponible, apercu_png, libelles_imprimes
 from app.storage.repository import NonEnregistrable
-from app.validation.parties import Lien, concordance, lien, rapprocher
 from app.validation.verdict import juger
 
 router = APIRouter(prefix="/parcelles", tags=["parcelle"])
 
 
-def _ecritures(sauf: str | None = None) -> list[tuple[str, str | None]]:
-    """Les noms de propriétaires déjà en base, avec le document où ils figurent."""
-    return [(p.document_id, p.owner) for p in depot().all()
-            if p.document_id != sauf and p.owner]
-
-
-def _concordances(p, voisines) -> list:
-    """Les titres liés à celui-ci, et ce que leurs requérants en disent.
-
-    Le lien d'abord, le nom ensuite : on ne confronte deux identités que lorsque le
-    NICAD, une filiation déclarée ou le terrain lui-même rattachent déjà les deux
-    titres. Un nom qui se ressemble, à lui seul, ne fait pas un dossier.
-    """
-    recouvrantes = {v.document_id for v in voisines
-                    if (r := compare(p, v)) is not None and r.conflit}
-    trouves = []
-    for autre in depot().all():
-        if autre.document_id == p.document_id:
-            continue
-        nature = lien(p, autre) or (Lien.GEOMETRIE
-                                    if autre.document_id in recouvrantes else None)
-        if nature is None:
-            continue
-        if (c := concordance(p, autre, nature)) is not None:
-            trouves.append(c)
-    # Ce qui demande une instruction d'abord.
-    trouves.sort(key=lambda c: not c.a_instruire)
-    return trouves
 
 
 def _parcelle(extraction):
@@ -100,20 +69,11 @@ def confronter(corps: EnregistrementIn) -> dict:
         trouves = scan(p, voisines)
     except NonComparable as exc:
         raise HTTPException(409, str(exc)) from exc
-    # Deux usages distincts, et l'ordre compte. `concordances` vérifie l'identité sur
-    # des titres DÉJÀ liés (NICAD, filiation, même terrain) : c'est là qu'un dossier se
-    # forme. `rapprochements` ne fait que suggérer des homonymes dans la base, et peut
-    # en rendre plusieurs sans que cela veuille dire quoi que ce soit.
-    accords = _concordances(p, voisines)
-    proches = rapprocher(corps.extraction.owner.value, _ecritures(p.document_id))
     return {
         "parcelle": ParcelleOut.de(p),
         "centre": centre_wgs84(p),
         "recouvrements": [RecouvrementOut.de(r) for r in trouves],
         "conflits": sum(1 for r in trouves if r.conflit),
-        "concordances": [ConcordanceOut.de(c) for c in accords],
-        "a_instruire": sum(1 for c in accords if c.a_instruire),
-        "rapprochements": [RapprochementOut.de(r) for r in proches],
         # La nouvelle parcelle et ses voisines d'enveloppe sur la même couche : c'est en
         # les superposant qu'on voit ce qui se chevauche.
         "geojson": to_geojson([p, *voisines]),
@@ -155,19 +115,6 @@ def recouvrements(document_id: str) -> dict:
     return {"document_id": document_id,
             "recouvrements": [RecouvrementOut.de(r) for r in trouves],
             "conflits": sum(1 for r in trouves if r.conflit)}
-
-
-@router.get("/{document_id:path}/homonymes",
-            summary="Les titres dont le propriétaire s'écrit presque pareil")
-def homonymes(document_id: str) -> dict:
-    """Des pistes pour un agent, jamais une identité établie : un même nom désigne
-    souvent des personnes différentes."""
-    enregistree = _trouve(document_id)
-    nom = enregistree.extraction.owner
-    proches = rapprocher(nom.value if nom.present else None, _ecritures(document_id))
-    return {"document_id": document_id,
-            "nom": nom.value if nom.present else None,
-            "rapprochements": [RapprochementOut.de(r) for r in proches]}
 
 
 @router.get("/{document_id:path}/apercu", summary="Le tracé d'une parcelle enregistrée",

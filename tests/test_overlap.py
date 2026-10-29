@@ -1,8 +1,9 @@
-"""Les cas sont construits a partir de parcelles reelles du corpus, deplacees :
-les formes restent vraies, seule leur position change."""
+"""Les cas sont construits a partir de parcelles reelles, deplacees : les formes
+restent vraies, seule leur position change.
 
-import json
-from pathlib import Path
+Les coordonnees viennent de ce que les modeles ont lu sur de vrais titres
+(tests/fake_readers.REELLES), et non d'une verite terrain saisie a la main.
+"""
 
 import pytest
 from shapely.affinity import translate
@@ -10,31 +11,14 @@ from shapely.affinity import translate
 from app.core.schema import (
     DATUM_INCONNU,
     DATUM_RRS04,
-    Area,
-    BoundaryPoint,
-    Extracted,
-    Extraction,
 )
 from app.geospatial.overlap import NonComparable, Verdict, compare, scan
 from app.geospatial.parcel import Parcel, parcel
-
-ANNOTATIONS = Path("data/annotations")
-pytestmark = pytest.mark.skipif(not ANNOTATIONS.exists(), reason="corpus annoté absent")
+from tests.fake_readers import extraction_reelle
 
 
 def reelle(nom):
-    a = json.loads((ANNOTATIONS / f"{nom}.json").read_text(encoding="utf-8"))
-    pts = [BoundaryPoint(label=p["label"], row_index=i,
-                         x=Extracted[float](value=float(p["x"]), confidence=1.0),
-                         y=Extracted[float](value=float(p["y"]), confidence=1.0))
-           for i, p in enumerate(a["points"])]
-    aire = a.get("printed_area")
-    return parcel(Extraction(
-        document_id=a["document_id"], points=pts, datum=DATUM_RRS04,
-        printed_area=Extracted[Area](value=Area(**aire), confidence=1.0)
-        if aire else Extracted[Area](),
-        title_number=Extracted[str](value=a.get("title_number") or a["document_id"],
-                                    confidence=1.0)))
+    return parcel(extraction_reelle(nom))
 
 
 def decalee(p, dx, dy, doc, mere=None):
@@ -45,12 +29,12 @@ def decalee(p, dx, dy, doc, mere=None):
 
 @pytest.fixture
 def mermoz():
-    return reelle("D11")          # 255 m², Dakar
+    return reelle("mermoz")       # 255 m², Dakar, 4 bornes
 
 
 @pytest.fixture
 def thies():
-    return reelle("D10")          # 58 941 m², Thiès
+    return reelle("thies")        # 58 941 m², Thiès, 8 bornes
 
 
 def test_parcelles_eloignees(mermoz):
@@ -112,14 +96,14 @@ def test_balayage_conflits_en_tete(mermoz, thies):
 
 def test_precision_se_deduit_de_l_ecart_de_superficie():
     """ε ≈ |aire calculée − aire imprimée| / périmètre."""
-    a = reelle("D11")
+    a = reelle("mermoz")
     attendu = abs(a.area_m2 - a.printed_m2) / a.polygon.length
     assert a.precision_m == pytest.approx(max(attendu, 0.01))
 
 
 def test_precision_inconnue_sans_superficie_imprimee():
     """Pas de superficie au document : la qualité se dit inconnue, pas par défaut."""
-    sans = Parcel(document_id="X", polygon=reelle("D11").polygon, crs="EPSG:32628",
+    sans = Parcel(document_id="X", polygon=reelle("mermoz").polygon, crs="EPSG:32628",
                   datum=DATUM_RRS04, printed_m2=None)
     assert sans.precision_m is None
     assert sans.qualite == "?"
@@ -132,7 +116,7 @@ def test_recouvrement_plus_etroit_que_l_incertitude_n_est_pas_un_conflit():
     décalée d'un centimètre se recouvre à 99,99 %, et ce n'est pas du bruit de levé,
     c'est le même terrain lu deux fois.
     """
-    a = reelle("D11")
+    a = reelle("mermoz")
     b = decalee(a, 13.79, -9.37, "VOISIN")
     r = compare(a, b)
     assert r is not None
@@ -143,7 +127,7 @@ def test_recouvrement_plus_etroit_que_l_incertitude_n_est_pas_un_conflit():
 
 
 def test_vrai_chevauchement_reste_un_conflit_et_annonce_l_incertitude():
-    a = reelle("D11")
+    a = reelle("mermoz")
     b = decalee(a, 5.0, -3.0, "VOISIN")          # bande de 6,3 m : largement mesurable
     r = compare(a, b)
     assert r is not None
@@ -153,7 +137,7 @@ def test_vrai_chevauchement_reste_un_conflit_et_annonce_l_incertitude():
 
 
 def test_incertitude_inconnue_dit_qu_elle_l_est():
-    a = reelle("D11")
+    a = reelle("mermoz")
     b = Parcel(document_id="VOISIN", polygon=translate(a.polygon, 5.0, -3.0),
                crs=a.crs, datum=a.datum, title_number="VOISIN", printed_m2=None)
     r = compare(a, b)

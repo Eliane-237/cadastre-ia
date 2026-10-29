@@ -18,6 +18,8 @@ from app.core.normalize import canonical_label
 from app.core.schema import (
     DATUM_INCONNU,
     DATUM_RRS04,
+    FUSEAU_DEFAUT,
+    FUSEAUX,
     BoundaryPoint,
     Extraction,
     Issue,
@@ -43,30 +45,62 @@ def _drop_closing_point(points: list[BoundaryPoint]) -> list[BoundaryPoint]:
 # national, exprime en UTM 28N ; HATT est une autre projection, incompatible avec nos
 # plages et avec un calcul de surface en metres.
 MIN_POINTS_LOCALITE = 3       # un centroide a besoin d'au moins trois sommets
-_CRS_UTM28N = ("RRS", "RSS")
-_CRS_AUTRES = ("HATT",)
+# Une case du document, « Système de Coordonnées », et DEUX questions sans rapport :
+# sur quel référentiel les coordonnées sont-elles rattachées (le datum), et dans quel
+# fuseau sont-elles projetées. Les confondre était le défaut de ce module : une fonction
+# nommée d'après la projection reconnaissait en fait des datums, et le fuseau n'était
+# jamais lu. Chacune a maintenant sa fonction.
+
+_DATUMS_SENEGAL = ("RRS", "RSS")     # Réseau de Référence du Sénégal
+_DATUMS_AUTRES = ("HATT",)
+
+# « UTM zone 28N », « UTM 29 », « fuseau 28 ». Le mot-clé est exigé avant le nombre :
+# sans lui, le « 04 » de « RRS 04 » passerait pour un fuseau.
+_FUSEAU_IMPRIME = re.compile(r"(?:UTM|FUSEAU|ZONE)\D{0,12}?(\d{1,3})", re.IGNORECASE)
 
 
-def crs_is_utm28n(declared: str | None) -> bool | None:
-    """True si le systeme declare est compatible UTM 28N, False si non, None si inconnu."""
+def systeme_reconnu(declared: str | None) -> bool | None:
+    """Le référentiel imprimé est-il un de ceux qu'on sait interpréter ?
+
+    True pour le Réseau de Référence du Sénégal, False pour un système explicitement
+    autre, None quand on ne sait pas trancher. Ne dit rien du fuseau.
+    """
     if not declared:
         return None
     text = declared.upper()
-    if any(k in text for k in _CRS_AUTRES):
+    if any(k in text for k in _DATUMS_AUTRES):
         return False
-    if any(k in text for k in _CRS_UTM28N):
+    if any(k in text for k in _DATUMS_SENEGAL):
         return True
     return None
 
 
-def datum_for(declared: str | None) -> str:
+def datum_de(declared: str | None) -> str:
     """Le datum derrière le système imprimé sur le document, ou « inconnu ».
 
     « RRS » et « RSS » désignent le Réseau de Référence du Sénégal, dont le datum est
     documenté. Tout le reste reste inconnu : il vaut mieux qu'un traitement en aval
     bute sur un datum manquant plutôt qu'il suppose du WGS84 sans le savoir.
     """
-    return DATUM_RRS04 if crs_is_utm28n(declared) is True else DATUM_INCONNU
+    return DATUM_RRS04 if systeme_reconnu(declared) is True else DATUM_INCONNU
+
+
+def fuseau_de(declared: str | None) -> str | None:
+    """Le fuseau UTM imprimé, en code EPSG. None quand le document ne le dit pas.
+
+    « UTM zone 28N » le donne, « RRS 04 » non : celui-ci nomme le référentiel, pas la
+    projection. Rendre None plutôt que de supposer laisse l'appelant décider, et c'est
+    `FUSEAU_DEFAUT` qui porte l'hypothèse, explicitement.
+    """
+    if not declared:
+        return None
+    m = _FUSEAU_IMPRIME.search(declared)
+    return FUSEAUX.get(m.group(1).lstrip("0")) if m else None
+
+
+def referentiel_de(declared: str | None) -> tuple[str, str]:
+    """Le couple (projection, datum) lu sur le document, hypothèse de fuseau comprise."""
+    return fuseau_de(declared) or FUSEAU_DEFAUT, datum_de(declared)
 
 
 _NUMERO = re.compile(r"([A-Z]*)(\d+)")
@@ -227,14 +261,14 @@ def _check_values(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
     if complete and len(hors) > len(complete) / 2:
         return [
             Issue(
-                code="CRS_HORS_UTM28N",
+                code="CRS_HORS_FUSEAU",
                 severity=Severity.WARNING,
                 point_labels=[p.label for p in hors],
                 message=(
                     f"{len(hors)} des {len(complete)} point(s) complets hors de la plage "
-                    f"UTM 28N (sur {len(points)} lus) : le document est probablement "
-                    "exprimé dans un autre système de coordonnées. Contrôles géométriques "
-                    "non applicables."
+                    f"d'un fuseau UTM (sur {len(points)} lus) : le fuseau lu n'est "
+                    "probablement pas le bon, ou le document est exprimé dans un autre "
+                    "système. Contrôles géométriques non applicables."
                 ),
             )
         ]
@@ -250,7 +284,7 @@ def _check_values(points: list[BoundaryPoint], cfg: Settings) -> list[Issue]:
         if bad:
             issues.append(Issue(
                 code="COORD_OUT_OF_RANGE", severity=Severity.ERROR, point_labels=[p.label],
-                message=f"Point {p.label} hors de la plage UTM 28N attendue "
+                message=f"Point {p.label} hors de la plage du fuseau UTM "
                         f"({', '.join(bad)})."))
     ok = [p for p in points if p.complete]
     if len(ok) >= 3:
@@ -502,19 +536,19 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
     issues: list[Issue] = []
 
     declared = extraction.coordinate_system.value if extraction.coordinate_system.present else None
-    if crs_is_utm28n(declared) is False:
+    if systeme_reconnu(declared) is False:
         issues.append(
             Issue(
                 code="CRS_NON_SUPPORTE",
                 severity=Severity.WARNING,
                 message=(
                     f"Système de coordonnées « {declared} » : ni la plage attendue ni le "
-                    "calcul de surface en UTM 28N ne s'appliquent. Géométrie non contrôlée."
+                    "calcul de surface en UTM ne s'appliquent. Géométrie non contrôlée."
                 ),
             )
         )
         return issues
-    if declared and crs_is_utm28n(declared) is None:
+    if declared and systeme_reconnu(declared) is None:
         issues.append(
             Issue(
                 code="CRS_INCONNU",
@@ -535,7 +569,7 @@ def validate(extraction: Extraction, cfg: Settings = SETTINGS) -> list[Issue]:
     issues += _check_values(points, cfg)
 
     if any(i.severity is Severity.ERROR for i in issues) or any(
-        i.code == "CRS_HORS_UTM28N" for i in issues
+        i.code == "CRS_HORS_FUSEAU" for i in issues
     ):
         issues.append(Issue(
             code="GEOMETRY_SKIPPED", severity=Severity.INFO,
@@ -579,7 +613,8 @@ def validated(extraction: Extraction, cfg: Settings = SETTINGS) -> Extraction:
     declared = extraction.coordinate_system.value if extraction.coordinate_system.present else None
     return extraction.model_copy(
         update={
-            "datum": datum_for(declared),
+            "crs": referentiel_de(declared)[0],
+            "datum": referentiel_de(declared)[1],
             "issues": [*extraction.issues, *validate(extraction, cfg)],
         }
     )
